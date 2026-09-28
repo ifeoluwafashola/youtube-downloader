@@ -78,7 +78,7 @@ class Job:
     files: list = field(default_factory=list)   # [{index, name, path, size, size_text, playable}]
     total_size: int = 0
     added: str = field(default_factory=lambda: datetime.now().strftime("%H:%M:%S"))
-    log: deque = field(default_factory=lambda: deque(maxlen=40), repr=False)
+    log: deque = field(default_factory=lambda: deque(maxlen=300), repr=False)
 
     def set_files(self, paths: list[str]):
         """Record finished files with their sizes (skips anything that vanished)."""

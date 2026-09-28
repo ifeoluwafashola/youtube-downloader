@@ -52,6 +52,8 @@
   .msg.err { background:#ffebe9; color:var(--bad); } .msg.ok { background:#dafbe1; color:var(--ok); } .msg.note { background:#fff8c5; color:var(--warn); }
   pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
   details summary { cursor:pointer; color:var(--accent); font-size:12px; }
+  details summary button { margin-left:6px; vertical-align:middle; }
+  td.title pre.out { max-height:200px; white-space:pre; user-select:text; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
   .files { margin:6px 0 0; padding:0; list-style:none; font-size:12px; }
   .files li { display:flex; gap:8px; align-items:center; padding:2px 0; white-space:nowrap; }
@@ -226,35 +228,83 @@
     } catch (e) { /* server restarting; try again next tick */ }
   }
 
+  // The table is patched in place rather than rebuilt: a cell is only
+  // re-rendered when its content changes, so scroll position and text
+  // selection inside a finished job's log survive the 1-second refresh.
+  const cellCache = new Map();   // "jobId:cell" -> last html written
+
+  function setCell(tr, j, name, html) {
+    const key = `${j.id}:${name}`;
+    if (cellCache.get(key) === html) return;
+    cellCache.set(key, html);
+    tr.querySelector(`[data-cell="${name}"]`).innerHTML = html;
+  }
+
   function renderJobs(jobs) {
     const tb = $('jobs');
     show($('empty'), jobs.length === 0);
-    // Keep <details> panels open across the 1-second re-render.
-    const open = new Set([...tb.querySelectorAll('details[open]')].map(d => d.dataset.key));
-    tb.innerHTML = jobs.map(j => {
-      const active = j.status === 'DOWNLOADING' || j.status === 'INSPECTING';
-      const pct = j.percent == null ? null : Math.max(0, Math.min(100, j.percent));
-      const bar = active && pct == null
-        ? `<div class="bar indeterminate"><div></div></div>`
-        : `<div class="bar"><div style="width:${pct ?? 0}%"></div></div>`;
-      const sub = active
-        ? `${pct != null ? pct.toFixed(0) + '%' : ''} ${esc(j.speed)} ${j.eta ? 'ETA ' + esc(j.eta) : ''}<br>${esc(j.current)}`
-        : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : ''));
-      const log = j.log && j.log.length
-        ? `<details data-key="log-${j.id}"><summary>log</summary><pre class="out">${esc(j.log.join('\n'))}</pre></details>` : '';
-      const files = (j.files || []).length ? renderFiles(j) : '';
-      return `<tr>
-        <td>${j.id}</td>
-        <td class="title" title="${esc(j.url)}">${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>${files}${log}</td>
-        <td>${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}</td>
-        <td>${esc(j.quality_label)}</td>
-        <td><span class="badge ${j.status}">${j.status}</span></td>
-        <td class="prog">${bar}<small>${sub}</small></td>
-        <td>${j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : ''}
-            ${(j.files || []).length ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''}</td>
-      </tr>`;
-    }).join('');
-    tb.querySelectorAll('details').forEach(d => { if (open.has(d.dataset.key)) d.open = true; });
+    const keep = new Set();
+    let prev = null;
+    for (const j of jobs) {
+      const id = 'job-' + j.id;
+      keep.add(id);
+      let tr = document.getElementById(id);
+      if (!tr) {
+        tr = document.createElement('tr');
+        tr.id = id;
+        tr.innerHTML = `<td data-cell="id">${j.id}</td>
+          <td class="title" data-cell-title><div data-cell="title"></div><div data-cell="files"></div>
+            <details class="log hidden"><summary>log <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details></td>
+          <td data-cell="kind"></td>
+          <td data-cell="quality"></td>
+          <td data-cell="status"></td>
+          <td class="prog" data-cell="prog"></td>
+          <td data-cell="actions"></td>`;
+        tb.appendChild(tr);
+      }
+      // Keep rows in queue order without recreating them.
+      const want = prev ? prev.nextElementSibling : tb.firstElementChild;
+      if (want !== tr) tb.insertBefore(tr, want);
+      prev = tr;
+      patchRow(tr, j);
+    }
+    for (const tr of [...tb.children]) {
+      if (!keep.has(tr.id)) { tr.remove(); for (const k of cellCache.keys()) if (k.startsWith(tr.id.slice(4) + ':')) cellCache.delete(k); }
+    }
+  }
+
+  function patchRow(tr, j) {
+    const active = j.status === 'DOWNLOADING' || j.status === 'INSPECTING';
+    const pct = j.percent == null ? null : Math.max(0, Math.min(100, j.percent));
+    const bar = active && pct == null
+      ? `<div class="bar indeterminate"><div></div></div>`
+      : `<div class="bar"><div style="width:${pct ?? 0}%"></div></div>`;
+    const sub = active
+      ? `${pct != null ? pct.toFixed(0) + '%' : ''} ${esc(j.speed)} ${j.eta ? 'ETA ' + esc(j.eta) : ''}<br>${esc(j.current)}`
+      : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : ''));
+
+    tr.querySelector('[data-cell-title]').title = j.url;
+    setCell(tr, j, 'title', `${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>`);
+    setCell(tr, j, 'files', (j.files || []).length ? renderFiles(j) : '');
+    setCell(tr, j, 'kind', `${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}`);
+    setCell(tr, j, 'quality', esc(j.quality_label));
+    setCell(tr, j, 'status', `<span class="badge ${j.status}">${j.status}</span>`);
+    setCell(tr, j, 'prog', `${bar}<small>${sub}</small>`);
+    setCell(tr, j, 'actions',
+      (j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : '') +
+      ((j.files || []).length ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''));
+
+    // Log: update text only when it changed; if the user was reading the
+    // bottom, follow it, otherwise leave their scroll position alone.
+    const details = tr.querySelector('details.log');
+    const pre = details.querySelector('pre');
+    const text = (j.log || []).join('\n');
+    show(details, text.length > 0);
+    if (pre.textContent !== text) {
+      const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 12;
+      pre.textContent = text;
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+    }
   }
 
   function renderFiles(j) {
@@ -266,9 +316,21 @@
       </li>`).join('');
     // Long playlists: collapse the list behind a summary line.
     if (j.files.length > 5) {
-      return `<details data-key="files-${j.id}"><summary>${j.files.length} files · ${esc(j.total_size_text)}</summary><ul class="files">${rows}</ul></details>`;
+      return `<details><summary>${j.files.length} files · ${esc(j.total_size_text)}</summary><ul class="files">${rows}</ul></details>`;
     }
     return `<ul class="files">${rows}</ul>`;
+  }
+
+  async function copyLog(jobId, btn) {
+    const pre = document.getElementById('job-' + jobId).querySelector('details.log pre');
+    try {
+      await navigator.clipboard.writeText(pre.textContent);
+      const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => btn.textContent = old, 1200);
+    } catch (e) {
+      // Clipboard API unavailable: select the text so Ctrl+C works.
+      const range = document.createRange(); range.selectNodeContents(pre);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    }
   }
 
   // Remember which job/file is in the player so "Open in player" can act on it.
@@ -302,7 +364,10 @@
   $('jobs').addEventListener('click', async e => {
     const btn = e.target.closest('button');
     if (!btn) return;
-    if (btn.dataset.rm) {
+    if (btn.dataset.copy) {
+      e.preventDefault();
+      copyLog(btn.dataset.copy, btn);
+    } else if (btn.dataset.rm) {
       try { await api('/api/jobs/' + btn.dataset.rm, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); }
     } else if (btn.dataset.play) {
       const [jobId, index] = btn.dataset.play.split(':');

@@ -84,7 +84,8 @@ Tracks features, their implementation status, and notes.
 | 32 | Inspect URL → show title / uploader / duration / entry list | ✅ | |
 | 33 | Per-job quality, audio-only, playlist scope | ✅ | Range inputs or checkbox picker with select all / none |
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
-| 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time |
+| 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time. Rows are patched in place (a cell is only re-rendered when it changes), so scroll position and text selection in a log survive refreshes |
+| 35a | Copy log button | ✅ | Copies the job's yt-dlp output to the clipboard; last 300 lines kept per job |
 | 36 | Remove queued job / clear finished | ✅ | Running jobs cannot be cancelled mid-download yet |
 | 36a | Finished files listed per job with size | ✅ | Total size shown in the status column; lists longer than 5 files collapse behind a summary |
 | 36b | Play button (in-page player) | ✅ | Streams from the local server with seeking (HTTP Range); MP4/WebM/MP3/M4A/OGG/Opus. Falls back to a hint if the browser cannot decode the codec |
