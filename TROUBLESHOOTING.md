@@ -44,6 +44,26 @@ If it still fails right after an update, the fix is probably not released yet �
 
 ---
 
+## Keeping the program up to date
+
+There are two different things that can be updated:
+
+| What | Why | How |
+|------|-----|-----|
+| **yt-dlp** (the part that talks to YouTube) | YouTube changed something; downloads fail with 403 / "not a bot" / "format not available" | **Update downloader** button, or `Update.bat` |
+| **This program** (console, engine, launcher) | New features or fixes were published on GitHub | **Update app** button, the blue banner that appears when a new version exists, or `UpdateApp.bat` |
+
+After either update, close the console window and run `Start.bat` again.
+
+**"Local files have been modified; refusing to overwrite them"** — you (or someone) edited one of the program files.
+The updater will not destroy those edits. Either undo them, or open a terminal in the folder and run `git stash`, then update again.
+
+**"Could not check for updates"** — no internet, or GitHub is blocked by a proxy/firewall. Downloads from YouTube may still work. Try `UpdateApp.bat` from a network that can reach github.com.
+
+**Nothing happens after updating** — you must restart: close the black window and run `Start.bat`. The new files are on disk but the running program still has the old ones loaded.
+
+---
+
 ## "Sign in to confirm your age" / members-only / private video
 
 The downloader needs your YouTube login cookies.
