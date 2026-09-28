@@ -5,7 +5,9 @@ console, built on [yt-dlp](https://github.com/yt-dlp/yt-dlp). Intended for
 non-technical users on Windows: double-click one file and everything else is
 handled (Python environment, dependencies, FFmpeg).
 
-## Quick start (Windows)
+## Quick start
+
+### Windows
 
 1. Install Python 3.9 or newer from https://www.python.org/downloads/windows/
    and tick **"Add python.exe to PATH"** during setup.
@@ -18,6 +20,23 @@ copy of FFmpeg if the computer does not already have one. Later runs start in
 seconds. A browser tab opens at http://127.0.0.1:8765 automatically.
 
 Keep the black console window open while downloading; close it to stop.
+
+### macOS
+
+1. Install Python 3 from https://www.python.org/downloads/macos/ (or `brew install python`).
+2. Download or clone this folder.
+3. Double-click **`Start.command`**. If macOS refuses the first time, right-click
+   it, choose *Open*, and confirm once.
+
+### Linux
+
+```
+sudo apt install python3 python3-venv      # Debian/Ubuntu; adjust for your distro
+./start.sh
+```
+
+On all systems the first run needs internet (dependencies and, if the computer
+has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
 
 ## Using the console
 
@@ -67,9 +86,9 @@ python YtUnified.py --update
 Run `python YtUnified.py --help` for all options. Exit codes: 0 success,
 1 failure, 2 bad arguments.
 
-## Options for Start.bat
+## Launcher options
 
-Anything after `Start.bat` is passed to the console, e.g.
+Anything after `Start.bat` / `start.sh` is passed to the console, e.g.
 
 ```
 Start.bat --output D:\Videos
@@ -86,8 +105,9 @@ work on current Windows builds.
 | File | Purpose |
 |------|---------|
 | `Start.bat` | Launcher for Windows |
-| `Update.bat` | Upgrade yt-dlp |
-| `UpdateApp.bat` | Update this program from GitHub |
+| `start.sh`, `Start.command` | Launcher for Linux / macOS (`.command` is the double-clickable wrapper) |
+| `Update.bat`, `update.sh` | Upgrade yt-dlp (`update.sh app` updates the program) |
+| `UpdateApp.bat` | Update this program from GitHub (Windows) |
 | `yt_update.py` | Update logic (git pull, or zip download for non-git installs) |
 | `yt_web.py` | Web console (Flask, local only) |
 | `templates/index.html` | The web page (no internet-hosted assets) |
@@ -101,8 +121,7 @@ work on current Windows builds.
 
 ## Requirements
 
-- Windows 10/11 with Python 3.9+ (macOS and Linux work too via
-  `python yt_web.py`; there is no `.command`/`.sh` launcher yet)
+- Windows 10/11, macOS, or Linux with Python 3.9+
 - Internet access on first run (pip packages and FFmpeg)
 - FFmpeg: found automatically, downloaded automatically, or supplied by you in
   `bin\ffmpeg.exe` + `bin\ffprobe.exe`

@@ -8,6 +8,7 @@ Tracks features, their implementation status, and notes.
 |------|---------|
 | `README.md` | Start here: what it is, quick start, usage |
 | `TROUBLESHOOTING.md` | Plain-language fixes: FFmpeg, 403s, cookies, page not opening |
+| `start.sh` / `Start.command` / `update.sh` | The same for Linux and macOS |
 | `Start.bat` | Double-click launcher: sets up a private Python environment, installs dependencies, starts the web console, opens the browser |
 | `Update.bat` | Upgrades yt-dlp (fix for "YouTube changed something" breakages) |
 | `UpdateApp.bat` | Updates this program from GitHub |
@@ -100,7 +101,8 @@ Tracks features, their implementation status, and notes.
 | 39 | View run log in page | ✅ | |
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
 | 41 | Windows `Start.bat` launcher | ✅ | Creates `.venv`, installs only when `requirements.txt` changed, launches console |
-| 42 | macOS `.command` launcher | 🔲 | |
+| 42 | macOS / Linux launchers | ✅ | `start.sh` (tested on Linux incl. a Python without ensurepip - bootstraps pip itself), `Start.command` double-click wrapper for Finder (untested on a Mac), `update.sh` |
+| 42a | Launcher self-heals a half-made `.venv` | ✅ | Both `Start.bat` and `start.sh` check that pip works inside the venv and recreate it if not (e.g. after an interrupted first run) |
 | 43 | Queue history across restarts | ✅ | `history.json` in the user profile (`%LOCALAPPDATA%\YouTubeDownloader` on Windows), so it survives deleting or re-downloading the program folder; older copies next to the scripts are migrated automatically. Last 500 jobs incl. logs. Jobs that were running when the console closed show as INTERRUPTED. Files are re-checked every 10 s; deleted ones are struck through and the job gets a "Download again" button |
 | 43a | Download again | ✅ | Re-queues with the same URL and options and `force=True`: playlist archive ignored, but files still on disk are skipped, so only what is missing is fetched |
 | 44 | Choose output folder from the page | ✅ | Click the folder path in the header; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` in the user profile and used on the next start unless `--output` is given. Default for new installs is `<Downloads>\YouTube Downloader` (an existing `downloads\` next to the scripts keeps being used). Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |

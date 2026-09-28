@@ -26,11 +26,24 @@ if not defined PY (
 
 rem ---- 2. Create / reuse a private environment -------------------------------
 set "VENV=%~dp0.venv"
-if not exist "%VENV%\Scripts\python.exe" (
-    echo First run: creating a private Python environment...
-    %PY% -m venv "%VENV%" || (echo Could not create the environment. & pause & exit /b 1)
-)
 set "VPY=%VENV%\Scripts\python.exe"
+set "VENVOK=0"
+if exist "%VPY%" ("%VPY%" -m pip --version >nul 2>nul && set "VENVOK=1")
+if "%VENVOK%"=="0" (
+    if exist "%VENV%" (
+        echo Previous environment is incomplete - recreating it...
+        rmdir /s /q "%VENV%"
+    )
+    echo First run: creating a private Python environment...
+    %PY% -m venv "%VENV%" || (
+        rmdir /s /q "%VENV%" 2>nul
+        echo.
+        echo Could not create the environment. Re-install Python from python.org
+        echo with the default options and run this file again.
+        pause
+        exit /b 1
+    )
+)
 
 rem ---- 3. Install / refresh dependencies -------------------------------------
 rem Only reinstall when requirements.txt changed since the last successful run.

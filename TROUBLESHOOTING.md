@@ -97,7 +97,21 @@ The page only works on this computer. That is deliberate.
 
 ## "Python was not found"
 
-Install Python 3 from https://www.python.org/downloads/windows/ . During setup tick **"Add python.exe to PATH"**. Then run `Start.bat` again.
+**Windows:** install Python 3 from https://www.python.org/downloads/windows/ . During setup tick **"Add python.exe to PATH"**. Then run `Start.bat` again.
+**macOS:** https://www.python.org/downloads/macos/ or `brew install python`, then double-click `Start.command` again.
+**Linux:** `sudo apt install python3 python3-venv` (Debian/Ubuntu), then `./start.sh`.
+
+---
+
+## macOS: "Start.command cannot be opened because it is from an unidentified developer"
+
+Right-click `Start.command`, choose **Open**, then **Open** again in the dialog. macOS remembers the choice. If double-clicking does nothing at all, open Terminal, drag `start.sh` into it and press Enter.
+
+---
+
+## Linux: "ensurepip is not available" / "No module named pip"
+
+`start.sh` works around this automatically by fetching pip itself (needs internet). If it still fails, install the venv package for your Python, e.g. `sudo apt install python3-venv`, delete the `.venv` folder and run `./start.sh` again.
 
 ---
 
