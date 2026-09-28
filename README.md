@@ -32,7 +32,8 @@ Keep the black console window open while downloading; close it to stop.
 - **Add several links at once** lets you paste a list, one per line.
 - The queue shows live progress. Finished items list every file with its size,
   a **Play** button (plays right in the page) and an **Open** button (opens it
-  in your usual media player).
+  in your usual media player). **Show in folder** opens the folder the files
+  were saved to, with the file highlighted.
 - **Open folder** opens the `downloads\` folder. **Update downloader** upgrades
   yt-dlp when YouTube changes something and downloads start failing.
 

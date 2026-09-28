@@ -327,6 +327,23 @@ def api_open_file(job_id: int, index: int):
     return jsonify({"ok": True})
 
 
+@app.post("/api/jobs/<int:job_id>/reveal")
+def api_reveal_job(job_id: int):
+    """Open the folder containing the job's files, highlighting the first one where the OS allows."""
+    path = _job_file(job_id, 0)
+    try:
+        if platform.system() == "Windows":
+            # /select, highlights the file inside its folder.
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", "-R", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path.parent)])
+    except Exception as e:
+        return _bad(f"Could not open folder: {e}", 500)
+    return jsonify({"ok": True, "folder": str(path.parent)})
+
+
 @app.delete("/api/jobs/<int:job_id>")
 def api_remove_job(job_id: int):
     if worker.remove(job_id):

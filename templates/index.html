@@ -250,7 +250,8 @@
         <td>${esc(j.quality_label)}</td>
         <td><span class="badge ${j.status}">${j.status}</span></td>
         <td class="prog">${bar}<small>${sub}</small></td>
-        <td>${j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : ''}</td>
+        <td>${j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : ''}
+            ${(j.files || []).length ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''}</td>
       </tr>`;
     }).join('');
     tb.querySelectorAll('details').forEach(d => { if (open.has(d.dataset.key)) d.open = true; });
@@ -306,6 +307,8 @@
     } else if (btn.dataset.play) {
       const [jobId, index] = btn.dataset.play.split(':');
       play(jobId, index, btn.parentElement.querySelector('.fname').textContent);
+    } else if (btn.dataset.reveal) {
+      try { await api(`/api/jobs/${btn.dataset.reveal}/reveal`, { method: 'POST' }); } catch (err) { alert(err.message); }
     } else if (btn.dataset.open) {
       const [jobId, index] = btn.dataset.open.split(':');
       try { await api(`/api/jobs/${jobId}/files/${index}/open`, { method: 'POST' }); } catch (err) { alert(err.message); }
