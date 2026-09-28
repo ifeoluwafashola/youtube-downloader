@@ -1,0 +1,11 @@
+# Core engine. Keep this current: YouTube changes break old versions.
+yt-dlp>=2026.8.19
+
+# Web console
+flask>=3.0
+
+# Downloads a private FFmpeg/ffprobe on first run if none is installed.
+static-ffmpeg>=2.7
+
+# Lets yt-dlp embed thumbnails in MP4/MP3 without shelling out to ffmpeg.
+mutagen>=1.47

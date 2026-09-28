@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Downloader</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --line:#dde1e6; --text:#1f2328; --muted:#656d76; --accent:#0969da;
+          --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --skip:#6e7781; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:12px 20px; display:flex; flex-wrap:wrap; gap:10px 24px; align-items:center; }
+  header h1 { font-size:18px; margin:0 auto 0 0; }
+  header .meta { color:var(--muted); font-size:13px; }
+  header .meta b { color:var(--text); font-weight:600; }
+  main { max-width:1100px; margin:20px auto; padding:0 20px; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  input[type=text], select, textarea { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  input[type=text] { flex:1; min-width:280px; }
+  textarea { width:100%; min-height:80px; resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:13px; }
+  button { font:inherit; padding:7px 14px; border:1px solid var(--line); border-radius:6px; background:#f6f8fa; cursor:pointer; }
+  button:hover { background:#eef1f4; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary:hover { filter:brightness(1.08); }
+  button.small { padding:3px 8px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:default; }
+  label { display:inline-flex; gap:6px; align-items:center; }
+  .muted { color:var(--muted); }
+  .hidden { display:none !important; }
+  .info { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:10px 0; }
+  .info dt { color:var(--muted); } .info dd { margin:0; }
+  .entries { max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:6px; margin-top:8px; }
+  .entries label { display:flex; padding:4px 10px; border-bottom:1px solid #f0f2f4; gap:10px; }
+  .entries label:last-child { border-bottom:0; }
+  .entries .idx { width:3em; color:var(--muted); text-align:right; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  td.title { max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  td.title small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; color:#fff; background:var(--skip); }
+  .badge.SUCCESS { background:var(--ok); } .badge.PARTIAL { background:var(--warn); } .badge.FAILED { background:var(--bad); }
+  .badge.DOWNLOADING, .badge.INSPECTING { background:var(--accent); } .badge.QUEUED { background:#8c959f; }
+  .bar { height:8px; background:#e6e8eb; border-radius:4px; overflow:hidden; min-width:140px; }
+  .bar > div { height:100%; background:var(--accent); transition:width .4s; }
+  .bar.indeterminate > div { width:35%; animation:slide 1.2s infinite linear; }
+  @keyframes slide { from { transform:translateX(-100%);} to { transform:translateX(300%);} }
+  .prog small { display:block; color:var(--muted); font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .msg { padding:8px 12px; border-radius:6px; margin-top:10px; font-size:13px; }
+  .msg.err { background:#ffebe9; color:var(--bad); } .msg.ok { background:#dafbe1; color:var(--ok); } .msg.note { background:#fff8c5; color:var(--warn); }
+  pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
+  details summary { cursor:pointer; color:var(--accent); font-size:12px; }
+  .empty { color:var(--muted); text-align:center; padding:24px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>YouTube Downloader</h1>
+  <span class="meta">yt-dlp <b id="ver">…</b></span>
+  <span class="meta">FFmpeg <b id="ffmpeg">…</b></span>
+  <span class="meta">Folder <b id="outdir" style="font-family:ui-monospace,Consolas,monospace">…</b></span>
+  <button id="btnOpen">Open folder</button>
+  <button id="btnUpdate">Update downloader</button>
+</header>
+
+<main>
+  <div id="ffmpegWarn" class="card hidden" style="border-color:var(--bad)">
+    <b style="color:var(--bad)">FFmpeg is not available - video and MP3 downloads will fail.</b>
+    <div class="muted" style="margin:6px 0">Reason: <span id="ffmpegWarnText"></span></div>
+    <b>How to fix (any one of these):</b>
+    <ol id="ffmpegFix" style="margin:6px 0 0; padding-left:22px"></ol>
+    <div class="muted" style="margin-top:6px">More help: TROUBLESHOOTING.md in the program folder.</div>
+  </div>
+
+  <!-- Single URL -->
+  <section class="card">
+    <h2>Add a video or playlist</h2>
+    <div class="row">
+      <input type="text" id="url" placeholder="Paste a YouTube video or playlist link…" autofocus>
+      <button id="btnInspect" class="primary">Inspect</button>
+    </div>
+    <div id="inspectMsg"></div>
+
+    <div id="detected" class="hidden">
+      <dl class="info">
+        <dt>Type</dt><dd id="dKind"></dd>
+        <dt>Title</dt><dd id="dTitle"></dd>
+        <dt id="dUploaderLabel">Uploader</dt><dd id="dUploader"></dd>
+        <dt id="dExtraLabel"></dt><dd id="dExtra"></dd>
+      </dl>
+      <div id="mixed" class="row hidden" style="margin-bottom:8px">
+        <span class="muted">This link contains both a video and a playlist:</span>
+        <label><input type="radio" name="mixed" value="video" checked> Just this video</label>
+        <label><input type="radio" name="mixed" value="playlist"> Whole playlist</label>
+      </div>
+      <div class="row">
+        <label>Quality <select id="quality"></select></label>
+        <label><input type="checkbox" id="audio"> Audio only (MP3)</label>
+      </div>
+      <div id="scope" class="hidden" style="margin-top:10px">
+        <div class="row">
+          <span class="muted">Which videos?</span>
+          <label><input type="radio" name="scope" value="all" checked> All</label>
+          <label><input type="radio" name="scope" value="range"> Range</label>
+          <label><input type="radio" name="scope" value="pick"> Pick</label>
+          <span id="rangeBox" class="hidden">
+            <input type="text" id="rangeFrom" style="width:5em;min-width:0" placeholder="from"> –
+            <input type="text" id="rangeTo" style="width:5em;min-width:0" placeholder="to">
+          </span>
+          <span id="pickTools" class="hidden">
+            <button class="small" id="pickAll">Select all</button>
+            <button class="small" id="pickNone">Select none</button>
+          </span>
+        </div>
+        <div id="entries" class="entries hidden"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnAdd" class="primary">Add to queue</button>
+        <span id="addMsg" class="muted"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bulk -->
+  <section class="card">
+    <details>
+      <summary>Add several links at once</summary>
+      <p class="muted" style="margin:8px 0">One link per line. Each one is inspected and downloaded in turn with the settings below.</p>
+      <textarea id="bulk" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/playlist?list=..."></textarea>
+      <div class="row" style="margin-top:8px">
+        <label>Quality <select id="bulkQuality"></select></label>
+        <label><input type="checkbox" id="bulkAudio"> Audio only (MP3)</label>
+        <button id="btnBulk" class="primary">Add all to queue</button>
+        <span id="bulkMsg" class="muted"></span>
+      </div>
+    </details>
+  </section>
+
+  <!-- Queue -->
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Queue</h2>
+      <div class="row">
+        <button id="btnLog" class="small">View run log</button>
+        <button id="btnClear" class="small">Clear finished</button>
+      </div>
+    </div>
+    <div style="overflow:auto; margin-top:10px">
+      <table>
+        <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Quality</th><th>Status</th><th>Progress</th><th></th></tr></thead>
+        <tbody id="jobs"></tbody>
+      </table>
+      <div id="empty" class="empty">Nothing queued yet.</div>
+    </div>
+    <pre id="logOut" class="out hidden"></pre>
+  </section>
+
+  <div id="updateOut" class="card hidden">
+    <h2>Update downloader</h2>
+    <div id="updateMsg"></div>
+    <pre id="updateText" class="out"></pre>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const api = async (path, opts = {}) => {
+    const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const show = (el, on) => el.classList.toggle('hidden', !on);
+  const msg = (el, text, cls) => { el.innerHTML = text ? `<div class="msg ${cls}">${esc(text)}</div>` : ''; };
+
+  let info = null;          // last inspect result
+  let qualitiesLoaded = false;
+
+  // ---- state polling -------------------------------------------------------
+  async function refresh() {
+    try {
+      const st = await api('/api/state');
+      const s = st.settings;
+      $('ver').textContent = s.ytdlp_version;
+      $('ffmpeg').textContent = s.ffmpeg ? `${s.ffmpeg_source} ${s.ffmpeg_version || ''}`.trim() : 'missing';
+      $('ffmpeg').title = s.ffmpeg_detail || '';
+      $('ffmpeg').style.color = s.ffmpeg ? '' : 'var(--bad)';
+      show($('ffmpegWarn'), !s.ffmpeg);
+      if (!s.ffmpeg) {
+        $('ffmpegWarnText').textContent = s.ffmpeg_detail || 'FFmpeg was not found.';
+        $('ffmpegFix').innerHTML = (s.ffmpeg_fix || []).map(f => `<li>${esc(f)}</li>`).join('');
+      }
+      $('outdir').textContent = s.output_dir;
+      if (!qualitiesLoaded) {
+        for (const sel of [$('quality'), $('bulkQuality')]) {
+          sel.innerHTML = s.qualities.map(q => `<option value="${q.value}">${esc(q.label)}</option>`).join('');
+        }
+        qualitiesLoaded = true;
+      }
+      renderJobs(st.jobs);
+    } catch (e) { /* server restarting; try again next tick */ }
+  }
+
+  function renderJobs(jobs) {
+    const tb = $('jobs');
+    show($('empty'), jobs.length === 0);
+    tb.innerHTML = jobs.map(j => {
+      const active = j.status === 'DOWNLOADING' || j.status === 'INSPECTING';
+      const pct = j.percent == null ? null : Math.max(0, Math.min(100, j.percent));
+      const bar = active && pct == null
+        ? `<div class="bar indeterminate"><div></div></div>`
+        : `<div class="bar"><div style="width:${pct ?? 0}%"></div></div>`;
+      const sub = active
+        ? `${pct != null ? pct.toFixed(0) + '%' : ''} ${esc(j.speed)} ${j.eta ? 'ETA ' + esc(j.eta) : ''}<br>${esc(j.current)}`
+        : esc(j.detail || (j.completed ? j.completed + ' file(s)' : ''));
+      const log = j.log && j.log.length
+        ? `<details><summary>log</summary><pre class="out">${esc(j.log.join('\n'))}</pre></details>` : '';
+      return `<tr>
+        <td>${j.id}</td>
+        <td class="title" title="${esc(j.url)}">${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>${log}</td>
+        <td>${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}</td>
+        <td>${esc(j.quality_label)}</td>
+        <td><span class="badge ${j.status}">${j.status}</span></td>
+        <td class="prog">${bar}<small>${sub}</small></td>
+        <td>${j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  $('jobs').addEventListener('click', async e => {
+    const id = e.target.dataset.rm;
+    if (id) { try { await api('/api/jobs/' + id, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); } }
+  });
+
+  // ---- inspect -------------------------------------------------------------
+  async function inspect() {
+    const url = $('url').value.trim();
+    if (!url) return;
+    const noplaylist = !$('mixed').classList.contains('hidden') && document.querySelector('input[name=mixed]:checked').value === 'video';
+    msg($('inspectMsg'), 'Inspecting…', 'note');
+    $('btnInspect').disabled = true;
+    try {
+      info = await api('/api/inspect', { method: 'POST', body: JSON.stringify({ url, noplaylist }) });
+      msg($('inspectMsg'), '', '');
+      showDetected(info);
+    } catch (err) {
+      info = null; show($('detected'), false);
+      msg($('inspectMsg'), err.message, 'err');
+    } finally { $('btnInspect').disabled = false; }
+  }
+
+  function showDetected(i) {
+    show($('detected'), true);
+    $('dKind').textContent = i.kind === 'playlist' ? 'Playlist' : 'Single video';
+    $('dTitle').textContent = i.title;
+    $('dUploader').textContent = i.uploader || '—';
+    if (i.kind === 'playlist') {
+      $('dExtraLabel').textContent = 'Videos'; $('dExtra').textContent = i.count;
+    } else {
+      $('dExtraLabel').textContent = 'Duration'; $('dExtra').textContent = i.duration_text || '—';
+    }
+    show($('mixed'), i.mixed_url);
+    show($('scope'), i.kind === 'playlist');
+    $('entries').innerHTML = (i.entries || []).map(e =>
+      `<label><input type="checkbox" value="${e.index}"><span class="idx">${e.index}</span><span>${esc(e.title)}</span></label>`).join('');
+    document.querySelector('input[name=scope][value=all]').checked = true;
+    updateScope();
+    $('addMsg').textContent = '';
+  }
+
+  function updateScope() {
+    const v = document.querySelector('input[name=scope]:checked').value;
+    show($('rangeBox'), v === 'range');
+    show($('pickTools'), v === 'pick');
+    show($('entries'), v === 'pick');
+  }
+
+  function scopeItems() {
+    const v = document.querySelector('input[name=scope]:checked').value;
+    if (v === 'range') {
+      const a = $('rangeFrom').value.trim(), b = $('rangeTo').value.trim();
+      if (!a || !b) throw new Error('Enter both ends of the range.');
+      return `${a}-${b}`;
+    }
+    if (v === 'pick') {
+      const picked = [...$('entries').querySelectorAll('input:checked')].map(c => c.value);
+      if (!picked.length) throw new Error('Pick at least one video.');
+      return picked.join(',');
+    }
+    return '';
+  }
+
+  async function addJob() {
+    if (!info) return;
+    try {
+      const noplaylist = info.mixed_url && document.querySelector('input[name=mixed]:checked').value === 'video';
+      const body = { url: info.url, kind: info.kind, title: info.title, quality: $('quality').value,
+                     audio: $('audio').checked, noplaylist, items: info.kind === 'playlist' ? scopeItems() : '',
+                     total: info.count };
+      await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
+      $('addMsg').textContent = 'Added to queue.';
+      $('url').value = ''; info = null; show($('detected'), false);
+      refresh();
+    } catch (err) { $('addMsg').textContent = err.message; }
+  }
+
+  async function addBulk() {
+    const urls = $('bulk').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!urls.length) return;
+    try {
+      const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify({ urls, quality: $('bulkQuality').value, audio: $('bulkAudio').checked }) });
+      $('bulkMsg').textContent = `Added ${r.added.length}.` + (r.skipped.length ? ` Skipped ${r.skipped.length} non-YouTube link(s).` : '');
+      $('bulk').value = r.skipped.join('\n');
+      refresh();
+    } catch (err) { $('bulkMsg').textContent = err.message; }
+  }
+
+  // ---- misc buttons --------------------------------------------------------
+  $('btnInspect').onclick = inspect;
+  $('url').addEventListener('keydown', e => { if (e.key === 'Enter') inspect(); });
+  document.querySelectorAll('input[name=mixed]').forEach(r => r.addEventListener('change', inspect));
+  document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', updateScope));
+  $('pickAll').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = true);
+  $('pickNone').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = false);
+  $('audio').onchange = () => $('quality').disabled = $('audio').checked;
+  $('bulkAudio').onchange = () => $('bulkQuality').disabled = $('bulkAudio').checked;
+  $('btnAdd').onclick = addJob;
+  $('btnBulk').onclick = addBulk;
+  $('btnClear').onclick = async () => { await api('/api/jobs/clear', { method: 'POST' }); refresh(); };
+  $('btnOpen').onclick = async () => { try { await api('/api/open-folder', { method: 'POST' }); } catch (e) { alert(e.message); } };
+  $('btnLog').onclick = async () => {
+    const el = $('logOut');
+    if (!el.classList.contains('hidden')) { show(el, false); return; }
+    const r = await api('/api/log');
+    el.textContent = r.lines.length ? r.lines.join('\n') : '(log is empty)';
+    show(el, true);
+  };
+  $('btnUpdate').onclick = async () => {
+    if (!confirm('Update yt-dlp now? Downloads in progress will continue; restart the console afterwards.')) return;
+    show($('updateOut'), true);
+    msg($('updateMsg'), 'Updating… this can take a minute.', 'note');
+    $('updateText').textContent = '';
+    $('btnUpdate').disabled = true;
+    try {
+      const r = await api('/api/update', { method: 'POST' });
+      msg($('updateMsg'), r.ok ? 'Update finished. ' + r.note : 'Update failed - see output below.', r.ok ? 'ok' : 'err');
+      $('updateText').textContent = r.output;
+    } catch (e) { msg($('updateMsg'), e.message, 'err'); }
+    finally { $('btnUpdate').disabled = false; }
+  };
+
+  refresh();
+  setInterval(refresh, 1000);
+})();
+</script>
+</body>
+</html>

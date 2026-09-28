@@ -1,0 +1,5 @@
+# Normalise line endings: LF in the repo for everything...
+* text=auto eol=lf
+
+# ...except Windows batch files, which cmd.exe wants as CRLF.
+*.bat text eol=crlf

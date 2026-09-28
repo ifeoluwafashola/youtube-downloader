@@ -1,0 +1,19 @@
+# Private Python environment created by Start.bat
+.venv/
+
+# Downloaded media, archives and run log
+downloads/
+
+# Optional locally supplied FFmpeg binaries (large; each user supplies their own)
+bin/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
