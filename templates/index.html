@@ -9,10 +9,19 @@
           --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --skip:#6e7781; }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  header { background:var(--card); border-bottom:1px solid var(--line); padding:12px 20px; display:flex; flex-wrap:wrap; gap:10px 24px; align-items:center; }
-  header h1 { font-size:18px; margin:0 auto 0 0; }
-  header .meta { color:var(--muted); font-size:13px; }
-  header .meta b { color:var(--text); font-weight:600; }
+  header { background:var(--card); border-bottom:1px solid var(--line); }
+  header .inner { max-width:1100px; margin:0 auto; padding:10px 20px; display:flex; gap:8px; align-items:center; }
+  header h1 { font-size:18px; margin:0 auto 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  header button { white-space:nowrap; }
+  header button.icon { padding:7px 10px; }
+  header button[aria-expanded="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .settings { display:grid; grid-template-columns:auto 1fr; gap:10px 16px; align-items:center; }
+  .settings .label { color:var(--muted); font-size:13px; white-space:nowrap; }
+  .settings .full { grid-column:1 / -1; }
+  .about { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
+  .about dt { color:var(--muted); } .about dd { margin:0; word-break:break-all; }
+  .about dd.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+  @media (max-width:640px) { .settings { grid-template-columns:1fr; } .settings .label { margin-bottom:-6px; } }
   main { max-width:1100px; margin:20px auto; padding:0 20px; display:grid; gap:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
   .card h2 { font-size:15px; margin:0 0 12px; }
@@ -83,22 +92,39 @@
 <body>
 
 <header>
-  <h1>YouTube Downloader</h1>
-  <span class="meta">version <b id="appver">…</b></span>
-  <span class="meta">yt-dlp <b id="ver">…</b></span>
-  <span class="meta">FFmpeg <b id="ffmpeg">…</b></span>
-  <span class="meta">Folder <b id="outdir" style="font-family:ui-monospace,Consolas,monospace; cursor:pointer" title="Click to change the download folder">…</b></span>
-  <span id="folderEdit" class="row hidden" style="gap:6px">
-    <input type="text" id="folderInput" style="min-width:320px; font-family:ui-monospace,Consolas,monospace; font-size:12px">
-    <button class="small" id="btnBrowse" title="Pick a folder with the system dialog">Browse…</button>
-    <button class="small primary" id="btnFolderSave">Save</button>
-    <button class="small" id="btnFolderCancel">Cancel</button>
-  </span>
-  <button id="btnOpen">Open folder</button>
-  <button id="btnUpdate" title="Get the latest version of this program and of yt-dlp (the part that talks to YouTube)">Update</button>
+  <div class="inner">
+    <h1>YouTube Downloader</h1>
+    <button id="btnUpdate" title="Get the latest version of this program and of yt-dlp (the part that talks to YouTube)">Update</button>
+    <button id="btnSettings" class="icon" aria-expanded="false" aria-controls="settingsPanel" title="Download folder, versions, where things are stored">&#9881; Settings</button>
+  </div>
 </header>
 
 <main>
+  <section id="settingsPanel" class="card hidden">
+    <h2>Settings</h2>
+    <div class="settings">
+      <span class="label">Download folder</span>
+      <div class="row" style="gap:6px">
+        <input type="text" id="folderInput" style="font-family:ui-monospace,Consolas,monospace; font-size:12px; flex:1; min-width:240px">
+        <button class="small" id="btnBrowse" title="Pick a folder with the system dialog">Browse…</button>
+        <button class="small primary" id="btnFolderSave">Save</button>
+        <button class="small" id="btnOpen" title="Open the download folder">Open folder</button>
+      </div>
+      <span class="label"></span>
+      <div class="hint">Currently saving to <span id="outdir" style="font-family:ui-monospace,Consolas,monospace"></span>. Applies to downloads started after you click Save.</div>
+      <div class="full" style="border-top:1px solid var(--line); margin-top:6px; padding-top:12px">
+        <b style="font-size:13px">About</b>
+        <dl class="about" style="margin:8px 0 0">
+          <dt>Program version</dt><dd id="appver">…</dd>
+          <dt>yt-dlp</dt><dd id="ver">…</dd>
+          <dt>FFmpeg</dt><dd id="ffmpeg">…</dd>
+          <dt>History &amp; settings</dt><dd id="dataDir" class="mono"></dd>
+        </dl>
+        <div class="hint" style="margin-top:6px">History and settings live in your user profile and survive reinstalling or deleting the program folder.</div>
+      </div>
+    </div>
+  </section>
+
   <div id="updateBanner" class="card hidden" style="border-color:var(--accent); display:flex; gap:12px; align-items:center">
     <span><b>An update is available</b> <span class="muted" id="updateVersions"></span></span>
     <button class="primary small" id="btnUpdateBanner">Update now</button>
@@ -227,7 +253,6 @@
     <pre id="updateText" class="out"></pre>
   </div>
 </main>
-<footer>History and settings are stored in <span id="dataDir" style="font-family:ui-monospace,Consolas,monospace"></span> and survive reinstalling or deleting the program folder.</footer>
 
 <script>
 (() => {
@@ -244,7 +269,7 @@
 
   let info = null;          // last inspect result
   let updateDone = false;   // hide the banner after a successful in-page update
-  let editingFolder = false, currentFolder = '';
+  let currentFolder = '';
   let optionsLoaded = false;
   let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
   const HINTS = {
@@ -308,7 +333,10 @@
         $('ffmpegWarnText').textContent = s.ffmpeg_detail || 'FFmpeg was not found.';
         $('ffmpegFix').innerHTML = (s.ffmpeg_fix || []).map(f => `<li>${esc(f)}</li>`).join('');
       }
-      if (!editingFolder) $('outdir').textContent = s.output_dir;
+      $('outdir').textContent = s.output_dir;
+      // Keep the input in step with the server unless the user is editing it.
+      const fi = $('folderInput');
+      if (document.activeElement !== fi && (fi.value === '' || fi.value === currentFolder)) fi.value = s.output_dir;
       currentFolder = s.output_dir;
       $('dataDir').textContent = s.data_dir || '';
       if (!optionsLoaded) {
@@ -610,16 +638,21 @@
   $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
 
-  // Download folder: click the path to edit, Browse opens the OS picker (same machine).
-  function startFolderEdit() { editingFolder = true; $('folderInput').value = currentFolder; show($('folderEdit'), true); show($('outdir'), false); $('folderInput').focus(); }
-  function stopFolderEdit() { editingFolder = false; show($('folderEdit'), false); show($('outdir'), true); }
-  $('outdir').onclick = startFolderEdit;
-  $('btnFolderCancel').onclick = stopFolderEdit;
-  $('folderInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFolderSave').click(); if (e.key === 'Escape') stopFolderEdit(); });
+  // Settings panel toggle.
+  $('btnSettings').onclick = () => {
+    const open = $('settingsPanel').classList.contains('hidden');
+    show($('settingsPanel'), open);
+    $('btnSettings').setAttribute('aria-expanded', String(open));
+    if (open) $('settingsPanel').scrollIntoView({ block: 'nearest' });
+  };
+
+  // Download folder.
+  $('folderInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFolderSave').click(); });
   $('btnFolderSave').onclick = async () => {
     try {
       const r = await api('/api/settings', { method: 'POST', body: JSON.stringify({ output_dir: $('folderInput').value }) });
-      currentFolder = r.output_dir; $('outdir').textContent = r.output_dir; stopFolderEdit();
+      currentFolder = r.output_dir; $('outdir').textContent = r.output_dir; $('folderInput').value = r.output_dir;
+      $('btnFolderSave').textContent = 'Saved'; setTimeout(() => $('btnFolderSave').textContent = 'Save', 1200);
     } catch (err) { alert(err.message); }
   };
   $('btnBrowse').onclick = async () => {

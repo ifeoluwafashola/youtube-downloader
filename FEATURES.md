@@ -97,7 +97,7 @@ Tracks features, their implementation status, and notes.
 | 36b | Play button (in-page player) | ✅ | Streams from the local server with seeking (HTTP Range); MP4/WebM/MP3/M4A/OGG/Opus. Falls back to a hint if the browser cannot decode the codec |
 | 36d | Show in folder button per finished job | ✅ | Opens the job's actual folder (playlist subfolder included) with the file highlighted: `explorer /select,` on Windows, `open -R` on macOS |
 | 36c | Open button (default desktop player) | ✅ | `os.startfile` on Windows; only files inside the downloads folder can be opened or streamed |
-| 37 | Output folder display + Open folder button | ✅ | |
+| 37 | Settings panel | ✅ | Header holds only the title, **Update** and **Settings**; the panel (closed by default) has the download folder (Browse / Save / Open folder) and an About block (program version, yt-dlp, FFmpeg source, where history lives). Header aligned to the content width and stays on one line on narrow windows |
 | 38 | Update button | ✅ | One button for program + yt-dlp (see #25) |
 | 39 | View run log in page | ✅ | |
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
@@ -106,7 +106,7 @@ Tracks features, their implementation status, and notes.
 | 42a | Launcher self-heals a half-made `.venv` | ✅ | Both `Start.bat` and `start.sh` check that pip works inside the venv and recreate it if not (e.g. after an interrupted first run) |
 | 43 | Queue history across restarts | ✅ | `history.json` in the user profile (`%LOCALAPPDATA%\YouTubeDownloader` on Windows), so it survives deleting or re-downloading the program folder; older copies next to the scripts are migrated automatically. Last 500 jobs incl. logs. Jobs that were running when the console closed show as INTERRUPTED. Files are re-checked every 10 s; deleted ones are struck through and the job gets a "Download again" button |
 | 43a | Download again | ✅ | Re-queues with the same URL and options and `force=True`: playlist archive ignored, but files still on disk are skipped, so only what is missing is fetched |
-| 44 | Choose output folder from the page | ✅ | Click the folder path in the header; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` in the user profile and used on the next start unless `--output` is given. Default for new installs is `<Downloads>\YouTube Downloader` (an existing `downloads\` next to the scripts keeps being used). Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |
+| 44 | Choose output folder from the page | ✅ | Settings panel; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` in the user profile and used on the next start unless `--output` is given. Default for new installs is `<Downloads>\YouTube Downloader` (an existing `downloads\` next to the scripts keeps being used). Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |
 | 45 | Batch import from .xlsx / .txt | ❌ | Superseded by bulk paste (#34) |
 | 46 | Standalone executable (PyInstaller) | 🔲 | |
 

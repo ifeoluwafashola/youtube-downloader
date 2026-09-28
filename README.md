@@ -61,9 +61,10 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
   **Show in folder** opens the folder the files were saved to.
 - The list is kept as history across restarts. If a file is later deleted from
   disk it is marked, and **Download again** fetches it once more.
-- Click the folder path in the header to change where files are saved
-  (**Browse…** opens a normal folder picker). The choice is remembered.
-- **Open folder** opens the download folder. **Update** fetches the latest
+- **Settings** (top right) holds the download folder (**Browse…** opens a normal
+  folder picker; the choice is remembered) and shows the program, yt-dlp and
+  FFmpeg versions.
+- **Update** fetches the latest
   version of this program and of yt-dlp in one go; a banner appears when
   something newer exists. Use it whenever downloads start failing - YouTube
   changes things every few weeks. Restart the console afterwards.

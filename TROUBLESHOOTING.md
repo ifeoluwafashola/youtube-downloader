@@ -28,7 +28,7 @@ Specific messages:
 - **"could not download FFmpeg"** — no internet, or a proxy/firewall blocks GitHub. Use fix B from a machine that can download, then copy the two files over.
 - **"static-ffmpeg package is not installed"** — the setup step did not finish. Run `Start.bat` again while online.
 
-You can always see which FFmpeg is in use: the console header shows `FFmpeg: bundled`, `system`, or `static-ffmpeg` plus its version. The `bin` folder copy always wins, so putting a known-good copy there overrides a broken system install.
+You can always see which FFmpeg is in use: open **Settings** in the console; the About block shows `bundled`, `system`, or `static-ffmpeg` plus its version. The `bin` folder copy always wins, so putting a known-good copy there overrides a broken system install.
 
 ---
 
@@ -162,7 +162,7 @@ Just queue it again. Partial `.part` files are resumed, not restarted.
 |------|-------|
 | Downloaded files | `downloads\` (playlists get their own subfolder) |
 | Run log (every attempt, with status) | `download_log.txt` inside the download folder |
-| Queue history and chosen folder | `%LOCALAPPDATA%\YouTubeDownloader\history.json` and `settings.json` (shown at the bottom of the page) — safe to delete; kept outside the program folder so reinstalling does not lose them |
+| Queue history and chosen folder | `%LOCALAPPDATA%\YouTubeDownloader\history.json` and `settings.json` (shown under Settings → About) — safe to delete; kept outside the program folder so reinstalling does not lose them |
 | Private Python environment | `.venv\` — safe to delete; `Start.bat` recreates it |
 | Downloaded FFmpeg copy | inside `.venv\Lib\site-packages\static_ffmpeg\bin\` |
 | Your own FFmpeg copy (optional) | `bin\ffmpeg.exe`, `bin\ffprobe.exe` |
