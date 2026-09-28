@@ -72,6 +72,7 @@ DATA_DIR = user_data_dir()
 HISTORY_FILE = DATA_DIR / "history.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_LIMIT = 500
+RESTART_EXIT_CODE = 3            # launchers (Start.bat / start.sh) restart the console on this code
 
 
 def migrate_legacy_state():
@@ -210,6 +211,8 @@ class QueueWorker:
         self._current: Optional[Job] = None
         self._cancel_requested: set[int] = set()
         self._dirty = False
+        self._save_lock = threading.Lock()      # one writer at a time for history.json
+        self._paused = False                    # set while shutting down: take no new jobs
         self._last_files_check = 0.0
         self.update_info: Optional[dict] = None     # filled by _check_update in the background
         self._load_history()
@@ -251,11 +254,13 @@ class QueueWorker:
             records = [j.to_record() for j in self.jobs[-HISTORY_LIMIT:]]
             self._dirty = False
         tmp = HISTORY_FILE.with_suffix(".json.tmp")
-        try:
-            tmp.write_text(json.dumps(records, ensure_ascii=False, indent=0), encoding="utf-8")
-            tmp.replace(HISTORY_FILE)
-        except OSError as e:
-            print(f"Warning: could not write {HISTORY_FILE.name}: {e}")
+        with self._save_lock:
+            try:
+                HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(json.dumps(records, ensure_ascii=False, indent=0), encoding="utf-8")
+                tmp.replace(HISTORY_FILE)
+            except OSError as e:
+                print(f"Warning: could not write {HISTORY_FILE.name}: {e}")
 
     def set_output_dir(self, path: str) -> Path:
         """Change the download folder for future jobs and remember it across restarts."""
@@ -359,7 +364,13 @@ class QueueWorker:
 
     # -- worker loop --------------------------------------------------------------
 
+    def pause(self):
+        """Stop starting new jobs (used before a restart). Queued jobs stay queued."""
+        self._paused = True
+
     def _next(self) -> Optional[Job]:
+        if self._paused:
+            return None
         with self._lock:
             for job in self.jobs:
                 if job.status == QUEUED:
@@ -471,6 +482,7 @@ def api_state():
         "settings": {
             "output_dir": str(s.output_dir.resolve()),
             "data_dir": str(DATA_DIR),
+            "pid": os.getpid(),
             "audio_formats": [{"value": k, "label": v[0]} for k, v in AUDIO_FORMATS.items()],
             "default_audio": DEFAULT_AUDIO,
             "containers": [{"value": k, "label": v} for k, v in CONTAINERS.items()],
@@ -693,8 +705,41 @@ def api_update():
         worker.update_info = {"available": False, "app": {"available": False, "local": current_version()},
                               "ytdlp": {"available": False, "installed": result.ytdlp_after}}
     return jsonify({**result.to_dict(), "log": lines,
-                    "note": "Close this window and run Start.bat again to load the new version."
-                            if result.changed else ""})
+                    "note": "Restart to load the new version." if result.changed else ""})
+
+
+def _restart_process():
+    """
+    Stop cleanly and come back with the code that is now on disk.
+    Runs on a helper thread so the HTTP response gets out first.
+    """
+    # Stop taking new jobs first, so queued ones are still QUEUED (and resume)
+    # after the restart; then give a running download a chance to record
+    # itself as CANCELLED rather than being found as INTERRUPTED later.
+    worker.pause()
+    if worker._current is not None:
+        worker.downloader.cancel()
+        for _ in range(50):                      # up to 5 s
+            if worker._current is None:
+                break
+            time.sleep(0.1)
+    worker.save()
+    print("Restarting...", flush=True)
+    if os.environ.get("YTDL_LAUNCHER"):
+        # Start.bat / start.sh are waiting for us: they re-check requirements
+        # and start a fresh process when they see this exit code.
+        os._exit(RESTART_EXIT_CODE)
+    # Started by hand (python yt_web.py): relaunch ourselves, then leave.
+    subprocess.Popen([sys.executable, *sys.argv], close_fds=True)
+    os._exit(0)
+
+
+@app.post("/api/restart")
+def api_restart():
+    """Restart the console so an update takes effect. Queued jobs resume; a running one is cancelled."""
+    running = worker._current is not None
+    threading.Timer(0.5, _restart_process).start()
+    return jsonify({"ok": True, "cancelled_running": running})
 
 
 @app.post("/api/open-folder")
@@ -787,7 +832,26 @@ def main():
         flask.cli.show_server_banner = lambda *_a, **_k: None
     except Exception:
         pass
+    _wait_for_port("127.0.0.1", args.port)
     app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True, use_reloader=False)
+
+
+def _wait_for_port(host: str, port: int, timeout: float = 15.0):
+    """After a restart the previous process may still hold the port for a moment."""
+    import socket
+    deadline = time.time() + timeout
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+                return
+            except OSError:
+                if time.time() > deadline:
+                    print(f"Port {port} is still in use. Is another copy of the console running? "
+                          f"Close it, or start with --port {port + 1}.")
+                    return
+                time.sleep(0.3)
 
 
 if __name__ == "__main__":

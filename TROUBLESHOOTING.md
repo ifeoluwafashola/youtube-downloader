@@ -48,9 +48,8 @@ If it still fails right after an update, the fix is probably not released yet �
 
 There is one **Update**. It fetches the latest version of the program *and* of yt-dlp (the part that talks to YouTube). You never need to know which one fixed your problem.
 
-- In the console: the **Update** button, or the blue banner that appears when something newer exists.
-- Or double-click `Update.bat` (`update.sh` on Mac/Linux).
-- Afterwards, close the console window and run `Start.bat` again.
+- In the console: the **Update** button, or the blue banner that appears when something newer exists. When it finishes, click **Restart now** - the console comes back by itself in a few seconds and the page reloads.
+- Or double-click `Update.bat` (`update.sh` on Mac/Linux), then run `Start.bat` again.
 
 When to update: whenever downloads suddenly start failing with 403 / "Sign in to confirm you're not a bot" / "Requested format is not available". YouTube changes things every few weeks and yt-dlp follows within days.
 
@@ -58,7 +57,9 @@ When to update: whenever downloads suddenly start failing with 403 / "Sign in to
 
 **"Could not check for updates"** — no internet, or GitHub / PyPI is blocked by a proxy or firewall. Downloads from YouTube may still work. Try again from a network that can reach github.com.
 
-**Nothing happens after updating** — you must restart: close the black window and run `Start.bat`. The new files are on disk but the running program still has the old ones loaded.
+**Nothing happens after updating** — you must restart so the new files are loaded: click **Restart now** in the console (or close the black window and run `Start.bat`). Queued downloads carry on after the restart; one that was in progress is stopped and gets a **Download again** button.
+
+**"The console did not come back"** — look at the black window. If it closed, run `Start.bat`. If it shows "Port 8765 is still in use", another copy is running: close it, or start with `Start.bat --port 8766`.
 
 ---
 

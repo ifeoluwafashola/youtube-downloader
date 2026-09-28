@@ -47,6 +47,10 @@ if "%VENVOK%"=="0" (
 
 rem ---- 3. Install / refresh dependencies -------------------------------------
 rem Only reinstall when requirements.txt changed since the last successful run.
+rem The console comes back here (exit code 3) when the user clicks Restart
+rem after an update, so new requirements are picked up too.
+set "YTDL_LAUNCHER=1"
+:run
 set "STAMP=%VENV%\.requirements.stamp"
 set "NEEDINSTALL=1"
 if exist "%STAMP%" (
@@ -70,6 +74,12 @@ echo Starting the web console. Keep this window open while downloading.
 echo Close it (or press Ctrl+C) to stop.
 echo.
 "%VPY%" yt_web.py %*
+if errorlevel 3 if not errorlevel 4 (
+    echo.
+    echo Restarting...
+    echo.
+    goto run
+)
 
 echo.
 echo The console has stopped.

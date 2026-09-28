@@ -22,6 +22,10 @@
   .about dt { color:var(--muted); } .about dd { margin:0; word-break:break-all; }
   .about dd.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; }
   @media (max-width:640px) { .settings { grid-template-columns:1fr; } .settings .label { margin-bottom:-6px; } }
+  #overlay { position:fixed; inset:0; background:rgba(245,246,248,.85); display:flex; align-items:center; justify-content:center; z-index:50; }
+  #overlay .box { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 32px; text-align:center; font-size:15px; box-shadow:0 12px 40px rgba(0,0,0,.12); }
+  .spinner { width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; margin:0 auto 12px; animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
   main { max-width:1100px; margin:20px auto; padding:0 20px; display:grid; gap:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
   .card h2 { font-size:15px; margin:0 0 12px; }
@@ -250,9 +254,17 @@
   <div id="updateOut" class="card hidden">
     <h2>Update</h2>
     <div id="updateMsg"></div>
+    <div class="row hidden" id="restartRow" style="margin-top:10px">
+      <button class="primary" id="btnRestart">Restart now</button>
+      <span class="hint">Takes a few seconds. Queued downloads continue afterwards; a download in progress is stopped and can be downloaded again.</span>
+    </div>
     <pre id="updateText" class="out"></pre>
   </div>
 </main>
+
+<div id="overlay" class="hidden">
+  <div class="box"><div class="spinner"></div><div id="overlayText">Restarting…</div></div>
+</div>
 
 <script>
 (() => {
@@ -687,7 +699,7 @@
     for (const b of [$('btnUpdate'), $('btnUpdateBanner')]) b.disabled = true;
     try {
       const r = await api('/api/update', { method: 'POST' });
-      if (r.ok && r.changed) { updateDone = true; msg($('updateMsg'), r.message + ' ' + r.note, 'ok'); }
+      if (r.ok && r.changed) { updateDone = true; msg($('updateMsg'), r.message + ' ' + r.note, 'ok'); show($('restartRow'), true); }
       else if (r.ok) msg($('updateMsg'), r.message, 'ok');
       else msg($('updateMsg'), r.message, 'err');
       const detail = [...(r.log || [])];
@@ -699,6 +711,29 @@
   }
   $('btnUpdate').onclick = runUpdate;
   $('btnUpdateBanner').onclick = runUpdate;
+
+  // Restart: ask the server to exit; the launcher starts it again. Poll until
+  // it answers, then reload so the page matches the new code.
+  async function restartApp() {
+    const busy = [...document.querySelectorAll('.badge.DOWNLOADING, .badge.INSPECTING')].length > 0;
+    if (busy && !confirm('A download is in progress. Restarting will stop it (you can download it again afterwards). Restart now?')) return;
+    show($('overlay'), true); $('overlayText').textContent = 'Restarting…';
+    try { await api('/api/restart', { method: 'POST' }); } catch (e) { /* the server may drop the connection while exiting */ }
+    const started = Date.now();
+    await new Promise(r => setTimeout(r, 2500));
+    for (;;) {
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' });
+        if (res.ok) { location.reload(); return; }
+      } catch (e) { /* not up yet */ }
+      if (Date.now() - started > 90000) {
+        $('overlayText').textContent = 'The console did not come back. Check the black window, or run Start.bat again.';
+        return;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  $('btnRestart').onclick = restartApp;
 
   refresh();
   setInterval(refresh, 1000);

@@ -67,7 +67,8 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
 - **Update** fetches the latest
   version of this program and of yt-dlp in one go; a banner appears when
   something newer exists. Use it whenever downloads start failing - YouTube
-  changes things every few weeks. Restart the console afterwards.
+  changes things every few weeks. Click **Restart now** afterwards; the console
+  comes back on its own.
 
 Files land in `Downloads\YouTube Downloader` unless you chose another folder.
 Playlists get their own subfolder. Every attempt is recorded in

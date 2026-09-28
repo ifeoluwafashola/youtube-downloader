@@ -66,22 +66,37 @@ if ! venv_ok; then
 fi
 
 # ---- 3. Install / refresh dependencies (only when requirements.txt changed) --
-STAMP="$VENV/.requirements.stamp"
-if [ ! -f "$STAMP" ] || ! cmp -s requirements.txt "$STAMP"; then
-    echo "Installing / updating components (needs internet)..."
-    "$VPY" -m pip install --quiet --upgrade pip
-    if ! "$VPY" -m pip install --quiet --upgrade -r requirements.txt; then
-        echo
-        echo "Could not install components. Check your internet connection and try again."
-        read -r -p "Press Enter to close." _ || true
-        exit 1
+install_requirements() {
+    STAMP="$VENV/.requirements.stamp"
+    if [ ! -f "$STAMP" ] || ! cmp -s requirements.txt "$STAMP"; then
+        echo "Installing / updating components (needs internet)..."
+        "$VPY" -m pip install --quiet --upgrade pip
+        if ! "$VPY" -m pip install --quiet --upgrade -r requirements.txt; then
+            echo
+            echo "Could not install components. Check your internet connection and try again."
+            read -r -p "Press Enter to close." _ || true
+            exit 1
+        fi
+        cp requirements.txt "$STAMP"
     fi
-    cp requirements.txt "$STAMP"
-fi
+}
 
 # ---- 4. Start the console (downloads FFmpeg on first run if needed) ----------
+# Exit code 3 means the user clicked Restart after an update: re-check the
+# requirements and start again in the same window.
+export YTDL_LAUNCHER=1
 echo
 echo "Starting the web console. Keep this window open while downloading."
 echo "Press Ctrl+C to stop."
 echo
-exec "$VPY" yt_web.py "$@"
+while :; do
+    install_requirements
+    set +e
+    "$VPY" yt_web.py "$@"
+    code=$?
+    set -e
+    [ "$code" -eq 3 ] || exit "$code"
+    echo
+    echo "Restarting..."
+    echo
+done

@@ -99,6 +99,7 @@ Tracks features, their implementation status, and notes.
 | 36c | Open button (default desktop player) | ✅ | `os.startfile` on Windows; only files inside the downloads folder can be opened or streamed |
 | 37 | Settings panel | ✅ | Header holds only the title, **Update** and **Settings**; the panel (closed by default) has the download folder (Browse / Save / Open folder) and an About block (program version, yt-dlp, FFmpeg source, where history lives). Header aligned to the content width and stays on one line on narrow windows |
 | 38 | Update button | ✅ | One button for program + yt-dlp (see #25) |
+| 38a | Restart from the page | ✅ | **Restart now** after an update: server pauses the queue, cancels a running job (recorded as CANCELLED), saves history and exits with code 3; `Start.bat` / `start.sh` loop on that code, re-check requirements and start a fresh process in the same window. Queued jobs resume. Page shows an overlay and reloads when the server answers again. Without a launcher (`python yt_web.py`) the server relaunches itself |
 | 39 | View run log in page | ✅ | |
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
 | 41 | Windows `Start.bat` launcher | ✅ | Creates `.venv`, installs only when `requirements.txt` changed, launches console |
