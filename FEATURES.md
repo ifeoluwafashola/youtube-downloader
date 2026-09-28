@@ -86,6 +86,9 @@ Tracks features, their implementation status, and notes.
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
 | 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time |
 | 36 | Remove queued job / clear finished | ✅ | Running jobs cannot be cancelled mid-download yet |
+| 36a | Finished files listed per job with size | ✅ | Total size shown in the status column; lists longer than 5 files collapse behind a summary |
+| 36b | Play button (in-page player) | ✅ | Streams from the local server with seeking (HTTP Range); MP4/WebM/MP3/M4A/OGG/Opus. Falls back to a hint if the browser cannot decode the codec |
+| 36c | Open button (default desktop player) | ✅ | `os.startfile` on Windows; only files inside the downloads folder can be opened or streamed |
 | 37 | Output folder display + Open folder button | ✅ | |
 | 38 | Update downloader button | ✅ | |
 | 39 | View run log in page | ✅ | |

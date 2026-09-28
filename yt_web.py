@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import mimetypes
 import os
 import platform
 import subprocess
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from flask import Flask, jsonify, render_template, request
+    from flask import Flask, abort, jsonify, render_template, request, send_file
 except ImportError:  # pragma: no cover
     raise SystemExit("Flask is not installed. Run:  pip install -r requirements.txt")
 
@@ -44,6 +45,14 @@ app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
 # ---------------------------------------------------------------------------
 # Queue model
 # ---------------------------------------------------------------------------
+
+def human_size(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
 
 QUEUED, INSPECTING, DOWNLOADING = "QUEUED", "INSPECTING", "DOWNLOADING"
 TERMINAL = {"SUCCESS", "PARTIAL", "FAILED", "SKIPPED", "CANCELLED"}
@@ -66,12 +75,31 @@ class Job:
     current: str = ""                # "3/12  Some title" or post-processor name
     detail: str = ""
     completed: int = 0
+    files: list = field(default_factory=list)   # [{index, name, path, size, size_text, playable}]
+    total_size: int = 0
     added: str = field(default_factory=lambda: datetime.now().strftime("%H:%M:%S"))
     log: deque = field(default_factory=lambda: deque(maxlen=40), repr=False)
+
+    def set_files(self, paths: list[str]):
+        """Record finished files with their sizes (skips anything that vanished)."""
+        self.files, self.total_size = [], 0
+        for path in paths:
+            p = Path(path)
+            if not p.is_file():
+                continue
+            size = p.stat().st_size
+            self.total_size += size
+            self.files.append({
+                "index": len(self.files), "name": p.name, "path": str(p),
+                "size": size, "size_text": human_size(size),
+                # Formats a browser <video>/<audio> element can normally play.
+                "playable": p.suffix.lower() in {".mp4", ".webm", ".mp3", ".m4a", ".ogg", ".opus"},
+            })
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d["log"] = list(self.log)
+        d["total_size_text"] = human_size(self.total_size) if self.total_size else ""
         d["quality_label"] = "MP3 audio" if self.audio else QUALITY_LABELS.get(self.quality, self.quality)
         return d
 
@@ -164,6 +192,7 @@ class QueueWorker:
                     job.url, kind=job.kind, title=job.title, quality=job.quality,
                     audio=job.audio, items=job.items, noplaylist=job.noplaylist)
                 job.status, job.detail, job.completed = result.status, result.detail, result.completed
+                job.set_files(result.files)
             except EngineError as e:
                 job.status, job.detail = "FAILED", str(e)
             except Exception as e:  # keep the worker alive no matter what
@@ -259,6 +288,43 @@ def api_add_jobs():
         )
         added.append(job.to_dict())
     return jsonify({"added": added, "skipped": skipped})
+
+
+def _job_file(job_id: int, index: int) -> Path:
+    """Resolve a (job, file index) pair to a path, refusing anything outside the output folder."""
+    with worker._lock:
+        job = next((j for j in worker.jobs if j.id == job_id), None)
+    if job is None or index < 0 or index >= len(job.files):
+        abort(404)
+    path = Path(job.files[index]["path"]).resolve()
+    root = worker.settings.output_dir.resolve()
+    if root not in path.parents or not path.is_file():
+        abort(404)
+    return path
+
+
+@app.get("/api/jobs/<int:job_id>/files/<int:index>")
+def api_stream_file(job_id: int, index: int):
+    """Stream a finished file to the in-page player (supports seeking via Range requests)."""
+    path = _job_file(job_id, index)
+    mimetype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return send_file(path, mimetype=mimetype, conditional=True)
+
+
+@app.post("/api/jobs/<int:job_id>/files/<int:index>/open")
+def api_open_file(job_id: int, index: int):
+    """Open a finished file with the default application on this computer."""
+    path = _job_file(job_id, index)
+    try:
+        if platform.system() == "Windows":
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except Exception as e:
+        return _bad(f"Could not open file: {e}", 500)
+    return jsonify({"ok": True})
 
 
 @app.delete("/api/jobs/<int:job_id>")

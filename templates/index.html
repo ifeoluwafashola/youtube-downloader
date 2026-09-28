@@ -53,6 +53,17 @@
   pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
   details summary { cursor:pointer; color:var(--accent); font-size:12px; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
+  .files { margin:6px 0 0; padding:0; list-style:none; font-size:12px; }
+  .files li { display:flex; gap:8px; align-items:center; padding:2px 0; white-space:nowrap; }
+  .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .files .fsize { color:var(--muted); min-width:60px; }
+  .files .badge { font-weight:400; }
+  dialog#player { border:0; border-radius:10px; padding:0; max-width:min(960px,94vw); width:100%; background:#111; color:#fff; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  dialog#player::backdrop { background:rgba(0,0,0,.6); }
+  dialog#player .bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1c1c1c; }
+  dialog#player .bar span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+  dialog#player video { display:block; width:100%; max-height:70vh; background:#000; }
+  dialog#player video.audio { height:60px; max-height:60px; }
 </style>
 </head>
 <body>
@@ -158,6 +169,15 @@
     <pre id="logOut" class="out hidden"></pre>
   </section>
 
+  <dialog id="player">
+    <div class="bar">
+      <span id="playerTitle"></span>
+      <button class="small" id="playerOpen" title="Open with the default player on this computer">Open in player</button>
+      <button class="small" id="playerClose">Close</button>
+    </div>
+    <video id="playerVideo" controls autoplay playsinline></video>
+  </dialog>
+
   <div id="updateOut" class="card hidden">
     <h2>Update downloader</h2>
     <div id="updateMsg"></div>
@@ -209,6 +229,8 @@
   function renderJobs(jobs) {
     const tb = $('jobs');
     show($('empty'), jobs.length === 0);
+    // Keep <details> panels open across the 1-second re-render.
+    const open = new Set([...tb.querySelectorAll('details[open]')].map(d => d.dataset.key));
     tb.innerHTML = jobs.map(j => {
       const active = j.status === 'DOWNLOADING' || j.status === 'INSPECTING';
       const pct = j.percent == null ? null : Math.max(0, Math.min(100, j.percent));
@@ -217,12 +239,13 @@
         : `<div class="bar"><div style="width:${pct ?? 0}%"></div></div>`;
       const sub = active
         ? `${pct != null ? pct.toFixed(0) + '%' : ''} ${esc(j.speed)} ${j.eta ? 'ETA ' + esc(j.eta) : ''}<br>${esc(j.current)}`
-        : esc(j.detail || (j.completed ? j.completed + ' file(s)' : ''));
+        : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : ''));
       const log = j.log && j.log.length
-        ? `<details><summary>log</summary><pre class="out">${esc(j.log.join('\n'))}</pre></details>` : '';
+        ? `<details data-key="log-${j.id}"><summary>log</summary><pre class="out">${esc(j.log.join('\n'))}</pre></details>` : '';
+      const files = (j.files || []).length ? renderFiles(j) : '';
       return `<tr>
         <td>${j.id}</td>
-        <td class="title" title="${esc(j.url)}">${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>${log}</td>
+        <td class="title" title="${esc(j.url)}">${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>${files}${log}</td>
         <td>${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}</td>
         <td>${esc(j.quality_label)}</td>
         <td><span class="badge ${j.status}">${j.status}</span></td>
@@ -230,11 +253,63 @@
         <td>${j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : ''}</td>
       </tr>`;
     }).join('');
+    tb.querySelectorAll('details').forEach(d => { if (open.has(d.dataset.key)) d.open = true; });
   }
 
+  function renderFiles(j) {
+    const rows = j.files.map(f => `<li>
+        <span class="fname" title="${esc(f.path)}">${esc(f.name)}</span>
+        <span class="fsize">${esc(f.size_text)}</span>
+        ${f.playable ? `<button class="small" data-play="${j.id}:${f.index}">Play</button>` : ''}
+        <button class="small" data-open="${j.id}:${f.index}">Open</button>
+      </li>`).join('');
+    // Long playlists: collapse the list behind a summary line.
+    if (j.files.length > 5) {
+      return `<details data-key="files-${j.id}"><summary>${j.files.length} files · ${esc(j.total_size_text)}</summary><ul class="files">${rows}</ul></details>`;
+    }
+    return `<ul class="files">${rows}</ul>`;
+  }
+
+  // Remember which job/file is in the player so "Open in player" can act on it.
+  let playing = null;
+  function play(jobId, index, name) {
+    const v = $('playerVideo');
+    playing = { jobId, index };
+    $('playerTitle').textContent = name;
+    v.className = /\.(mp3|m4a|ogg|opus)$/i.test(name) ? 'audio' : '';
+    v.src = `/api/jobs/${jobId}/files/${index}`;
+    $('player').showModal();
+  }
+  function stopPlayer() {
+    const v = $('playerVideo');
+    v.pause(); v.removeAttribute('src'); v.load();
+    if ($('player').open) $('player').close();
+  }
+  $('playerClose').onclick = stopPlayer;
+  $('playerVideo').addEventListener('error', () => {
+    if (!playing) return;
+    $('playerTitle').textContent = 'Your browser cannot play this format - use "Open in player" instead.';
+  });
+  $('player').addEventListener('close', stopPlayer);
+  $('player').addEventListener('click', e => { if (e.target === $('player')) stopPlayer(); }); // click on backdrop
+  $('playerOpen').onclick = async () => {
+    if (!playing) return;
+    try { await api(`/api/jobs/${playing.jobId}/files/${playing.index}/open`, { method: 'POST' }); stopPlayer(); }
+    catch (err) { alert(err.message); }
+  };
+
   $('jobs').addEventListener('click', async e => {
-    const id = e.target.dataset.rm;
-    if (id) { try { await api('/api/jobs/' + id, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); } }
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.rm) {
+      try { await api('/api/jobs/' + btn.dataset.rm, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); }
+    } else if (btn.dataset.play) {
+      const [jobId, index] = btn.dataset.play.split(':');
+      play(jobId, index, btn.parentElement.querySelector('.fname').textContent);
+    } else if (btn.dataset.open) {
+      const [jobId, index] = btn.dataset.open.split(':');
+      try { await api(`/api/jobs/${jobId}/files/${index}/open`, { method: 'POST' }); } catch (err) { alert(err.message); }
+    }
   });
 
   // ---- inspect -------------------------------------------------------------
