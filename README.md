@@ -40,7 +40,7 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
 
 ## Using the console
 
-The first visit offers a short tour, and **? Help** (top right) has a plain-language
+The first visit offers a short tour, and **Help** (top right) has a plain-language
 guide at any time.
 
 - Paste a video or playlist link and click **Inspect**. You see the title,
