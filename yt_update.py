@@ -154,10 +154,17 @@ def check_for_update() -> UpdateInfo:
 def _update_git(say: Callable[[str], None]) -> UpdateResult:
     dirty = _run(["git", "status", "--porcelain", "--untracked-files=no"]).stdout.strip()
     if dirty:
-        return UpdateResult(False, False,
-                            "Local files have been modified; refusing to overwrite them.\n"
-                            "Run  git stash  (or discard the changes) and try again.",
-                            output=dirty)
+        # Files that differ only in CRLF/LF (e.g. after a .gitattributes change)
+        # are not real edits: reset them so the pull can proceed.
+        real = _run(["git", "diff", "--quiet", "--ignore-cr-at-eol", "HEAD", "--"]).returncode != 0
+        if real:
+            return UpdateResult(False, False,
+                                "Local files have been modified; refusing to overwrite them.\n"
+                                "Run  git stash  (or discard the changes) and try again.",
+                                output=dirty)
+        files = [line[3:] for line in dirty.splitlines()]
+        say(f"Resetting line endings on: {', '.join(files)}")
+        _run(["git", "checkout", "--", *files])
     before = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
     say("Fetching latest version from GitHub...")
     pull = _run(["git", "pull", "--ff-only", "--quiet", "origin", BRANCH], timeout=300)
