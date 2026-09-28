@@ -31,6 +31,7 @@ try:
 except ImportError:  # pragma: no cover
     raise SystemExit("Flask is not installed. Run:  pip install -r requirements.txt")
 
+from yt_update import check_for_update, current_version, update_app
 from yt_engine import (
     QUALITIES, QUALITY_LABELS,
     Downloader, EngineError, Progress, Settings,
@@ -114,9 +115,17 @@ class QueueWorker:
         self._lock = threading.Lock()
         self._wake = threading.Event()
         self._current: Optional[Job] = None
+        self.update_info: Optional[dict] = None     # filled by _check_update in the background
         self.downloader = Downloader(settings, on_message=self._on_message, on_progress=self._on_progress)
         self._thread = threading.Thread(target=self._run, name="download-worker", daemon=True)
         self._thread.start()
+        threading.Thread(target=self._check_update, name="update-check", daemon=True).start()
+
+    def _check_update(self):
+        try:
+            self.update_info = check_for_update().to_dict()
+        except Exception as e:  # never let the check disturb the app
+            self.update_info = {"error": str(e), "available": False}
 
     # -- called from Flask request threads --------------------------------------
 
@@ -234,6 +243,8 @@ def api_state():
             "ffmpeg_detail": ff.detail,
             "ffmpeg_fix": ff.fix,
             "ytdlp_version": ytdlp_version(),
+            "app_version": current_version(),
+            "update": worker.update_info,
             "cookies": s.cookies_from_browser or (str(s.cookies_file) if s.cookies_file else ""),
             "qualities": [{"value": q, "label": QUALITY_LABELS[q]} for q in QUALITIES],
         },
@@ -361,6 +372,18 @@ def api_update():
     ok, output = update_ytdlp()
     return jsonify({"ok": ok, "output": output[-4000:],
                     "note": "Restart the console (close this window and run Start.bat) to load the new version."})
+
+
+@app.post("/api/update-app")
+def api_update_app():
+    """Pull the latest application code from GitHub. Files are swapped on disk; restart to load them."""
+    lines: list[str] = []
+    result = update_app(lines.append)
+    if result.ok:
+        worker.update_info = {"available": False, "local": current_version(), "remote": current_version()}
+    return jsonify({**result.to_dict(), "log": lines,
+                    "note": "Close this window and run Start.bat again to load the new version."
+                            if result.changed else ""})
 
 
 @app.post("/api/open-folder")

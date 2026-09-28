@@ -36,6 +36,8 @@ Keep the black console window open while downloading; close it to stop.
   were saved to, with the file highlighted.
 - **Open folder** opens the `downloads\` folder. **Update downloader** upgrades
   yt-dlp when YouTube changes something and downloads start failing.
+  **Update app** fetches the latest version of this program from GitHub; a
+  banner appears automatically when one is available. Restart afterwards.
 
 Files land in `downloads\`. Playlists get their own subfolder. Every attempt is
 recorded in `downloads\download_log.txt`.
@@ -74,6 +76,8 @@ work on current Windows builds.
 |------|---------|
 | `Start.bat` | Launcher for Windows |
 | `Update.bat` | Upgrade yt-dlp |
+| `UpdateApp.bat` | Update this program from GitHub |
+| `yt_update.py` | Update logic (git pull, or zip download for non-git installs) |
 | `yt_web.py` | Web console (Flask, local only) |
 | `templates/index.html` | The web page (no internet-hosted assets) |
 | `yt_engine.py` | Download engine shared by the console and CLI |

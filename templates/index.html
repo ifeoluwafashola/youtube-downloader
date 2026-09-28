@@ -72,14 +72,21 @@
 
 <header>
   <h1>YouTube Downloader</h1>
+  <span class="meta">version <b id="appver">…</b></span>
   <span class="meta">yt-dlp <b id="ver">…</b></span>
   <span class="meta">FFmpeg <b id="ffmpeg">…</b></span>
   <span class="meta">Folder <b id="outdir" style="font-family:ui-monospace,Consolas,monospace">…</b></span>
   <button id="btnOpen">Open folder</button>
-  <button id="btnUpdate">Update downloader</button>
+  <button id="btnUpdate" title="Upgrade yt-dlp, the part that talks to YouTube">Update downloader</button>
+  <button id="btnUpdateApp" title="Get the latest version of this program from GitHub">Update app</button>
 </header>
 
 <main>
+  <div id="updateBanner" class="card hidden" style="border-color:var(--accent); display:flex; gap:12px; align-items:center">
+    <span><b>A new version of this program is available</b> <span class="muted" id="updateVersions"></span></span>
+    <button class="primary small" id="btnUpdateAppBanner">Update now</button>
+  </div>
+
   <div id="ffmpegWarn" class="card hidden" style="border-color:var(--bad)">
     <b style="color:var(--bad)">FFmpeg is not available - video and MP3 downloads will fail.</b>
     <div class="muted" style="margin:6px 0">Reason: <span id="ffmpegWarnText"></span></div>
@@ -201,6 +208,7 @@
   const msg = (el, text, cls) => { el.innerHTML = text ? `<div class="msg ${cls}">${esc(text)}</div>` : ''; };
 
   let info = null;          // last inspect result
+  let updateDone = false;   // hide the banner after a successful in-page update
   let qualitiesLoaded = false;
 
   // ---- state polling -------------------------------------------------------
@@ -209,6 +217,10 @@
       const st = await api('/api/state');
       const s = st.settings;
       $('ver').textContent = s.ytdlp_version;
+      $('appver').textContent = s.app_version;
+      const u = s.update;
+      show($('updateBanner'), !!(u && u.available && !updateDone));
+      if (u && u.available) $('updateVersions').textContent = `(${u.local || 'unknown'} → ${u.remote})`;
       $('ffmpeg').textContent = s.ffmpeg ? `${s.ffmpeg_source} ${s.ffmpeg_version || ''}`.trim() : 'missing';
       $('ffmpeg').title = s.ffmpeg_detail || '';
       $('ffmpeg').style.color = s.ffmpeg ? '' : 'var(--bad)';
@@ -486,6 +498,7 @@
   $('btnUpdate').onclick = async () => {
     if (!confirm('Update yt-dlp now? Downloads in progress will continue; restart the console afterwards.')) return;
     show($('updateOut'), true);
+    $('updateOut').querySelector('h2').textContent = 'Update downloader';
     msg($('updateMsg'), 'Updating… this can take a minute.', 'note');
     $('updateText').textContent = '';
     $('btnUpdate').disabled = true;
@@ -496,6 +509,25 @@
     } catch (e) { msg($('updateMsg'), e.message, 'err'); }
     finally { $('btnUpdate').disabled = false; }
   };
+
+  async function updateApp() {
+    if (!confirm('Get the latest version of this program from GitHub? Downloads in progress will continue; you will need to restart the console afterwards.')) return;
+    show($('updateOut'), true);
+    $('updateOut').querySelector('h2').textContent = 'Update app';
+    msg($('updateMsg'), 'Updating…', 'note');
+    $('updateText').textContent = '';
+    for (const b of [$('btnUpdateApp'), $('btnUpdateAppBanner')]) b.disabled = true;
+    try {
+      const r = await api('/api/update-app', { method: 'POST' });
+      if (r.ok && r.changed) { updateDone = true; msg($('updateMsg'), r.message + ' ' + r.note, 'ok'); }
+      else if (r.ok) msg($('updateMsg'), r.message, 'ok');
+      else msg($('updateMsg'), r.message, 'err');
+      $('updateText').textContent = [...(r.log || []), r.output || '', ...(r.files || []).map(f => '  ' + f)].filter(Boolean).join('\n');
+    } catch (e) { msg($('updateMsg'), e.message, 'err'); }
+    finally { for (const b of [$('btnUpdateApp'), $('btnUpdateAppBanner')]) b.disabled = false; }
+  }
+  $('btnUpdateApp').onclick = updateApp;
+  $('btnUpdateAppBanner').onclick = updateApp;
 
   refresh();
   setInterval(refresh, 1000);

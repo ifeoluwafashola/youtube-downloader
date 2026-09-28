@@ -10,6 +10,8 @@ Tracks features, their implementation status, and notes.
 | `TROUBLESHOOTING.md` | Plain-language fixes: FFmpeg, 403s, cookies, page not opening |
 | `Start.bat` | Double-click launcher: sets up a private Python environment, installs dependencies, starts the web console, opens the browser |
 | `Update.bat` | Upgrades yt-dlp (fix for "YouTube changed something" breakages) |
+| `UpdateApp.bat` | Updates this program from GitHub |
+| `yt_update.py` | Update logic shared by the batch file and the console button |
 | `yt_web.py` | Local web console (Flask, 127.0.0.1:8765) with a download queue |
 | `templates/index.html` | The web page — single file, no internet-hosted assets |
 | `yt_engine.py` | Headless download engine shared by the console and the CLI; no printing or prompting |
@@ -65,7 +67,8 @@ Tracks features, their implementation status, and notes.
 | 23 | Progress display (percent, speed, ETA, current item) | ✅ | Computed from byte counts; yt-dlp's own bar suppressed (`noprogress`) so nothing prints twice |
 | 24 | FFmpeg auto-provisioning | ✅ | Order: `Yt/bin/` (bundled) → system PATH → `static-ffmpeg` package downloads a private copy once (~100 MB). Path passed to yt-dlp via `ffmpeg_location` |
 | 25 | Self-update of yt-dlp | ✅ | "Update downloader" button in console, `Update.bat`, `YtUnified.py --update`. Restart needed afterwards |
-| 26 | Startup version / staleness warning | 🔲 | |
+| 26 | Startup update check + banner | ✅ | Console compares the installed commit with GitHub once at startup (background thread); shows an "Update now" banner if behind |
+| 26a | Self-update of the application | ✅ | `UpdateApp.bat`, "Update app" button, `python yt_update.py`. Uses `git pull --ff-only` for clones, otherwise downloads the GitHub zip and copies files over. `.venv`, `downloads`, `bin`, `.git` are never touched; refuses to overwrite locally modified files; reinstalls dependencies if `requirements.txt` changed |
 | 27 | FFmpeg check is cached | ✅ | Was spawning a subprocess 3–4 times per download |
 
 ## Cookies and Authentication

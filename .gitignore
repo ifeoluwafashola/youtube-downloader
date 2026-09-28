@@ -7,6 +7,9 @@ downloads/
 # Optional locally supplied FFmpeg binaries (large; each user supplies their own)
 bin/
 
+# Written by yt_update.py when installed from a zip (records the installed commit)
+.app_version
+
 # Python
 __pycache__/
 *.pyc
