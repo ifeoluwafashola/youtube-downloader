@@ -10,8 +10,7 @@ Tracks features, their implementation status, and notes.
 | `TROUBLESHOOTING.md` | Plain-language fixes: FFmpeg, 403s, cookies, page not opening |
 | `start.sh` / `Start.command` / `update.sh` | The same for Linux and macOS |
 | `Start.bat` | Double-click launcher: sets up a private Python environment, installs dependencies, starts the web console, opens the browser |
-| `Update.bat` | Upgrades yt-dlp (fix for "YouTube changed something" breakages) |
-| `UpdateApp.bat` | Updates this program from GitHub |
+| `Update.bat` | Updates the program and yt-dlp (one step) |
 | `yt_update.py` | Update logic shared by the batch file and the console button |
 | `yt_web.py` | Local web console (Flask, 127.0.0.1:8765) with a download queue |
 | `templates/index.html` | The web page — single file, no internet-hosted assets |
@@ -68,9 +67,9 @@ Tracks features, their implementation status, and notes.
 | 22 | Concurrent fragment downloads | ✅ | 4 |
 | 23 | Progress display (percent, speed, ETA, current item) | ✅ | Computed from byte counts; yt-dlp's own bar suppressed (`noprogress`) so nothing prints twice |
 | 24 | FFmpeg auto-provisioning | ✅ | Order: `Yt/bin/` (bundled) → system PATH → `static-ffmpeg` package downloads a private copy once (~100 MB). Path passed to yt-dlp via `ffmpeg_location` |
-| 25 | Self-update of yt-dlp | ✅ | "Update downloader" button in console, `Update.bat`, `YtUnified.py --update`. Restart needed afterwards |
-| 26 | Startup update check + banner | ✅ | Console compares the installed commit with GitHub once at startup (background thread); shows an "Update now" banner if behind |
-| 26a | Self-update of the application | ✅ | `UpdateApp.bat`, "Update app" button, `python yt_update.py`. Uses `git pull --ff-only` for clones, otherwise downloads the GitHub zip and copies files over. `.venv`, `downloads`, `bin`, `.git` are never touched; refuses to overwrite locally modified files; reinstalls dependencies if `requirements.txt` changed |
+| 25 | Self-update: one Update for program + yt-dlp | ✅ | Single **Update** button / banner / `Update.bat` / `update.sh`. `yt_update.update_all()` pulls the program (git or zip), reinstalls requirements if changed, then upgrades yt-dlp; reports both. `--check` shows what is behind; `--app-only` exists for scripting |
+| 26 | Startup update check + banner | ✅ | Background thread compares the installed commit with GitHub and the installed yt-dlp with PyPI (numeric compare, so `2026.8.19` = `2026.08.19`); one banner names what is behind |
+| 26a | Program update mechanics | ✅ | `git pull --ff-only` for clones, otherwise the GitHub zip copied over. `.venv`, `downloads`, `bin`, `.git` never touched; refuses to overwrite real local edits (CRLF-only differences are reset); reinstalls dependencies if `requirements.txt` changed |
 | 27 | FFmpeg check is cached | ✅ | Was spawning a subprocess 3–4 times per download |
 
 ## Cookies and Authentication
@@ -99,7 +98,7 @@ Tracks features, their implementation status, and notes.
 | 36d | Show in folder button per finished job | ✅ | Opens the job's actual folder (playlist subfolder included) with the file highlighted: `explorer /select,` on Windows, `open -R` on macOS |
 | 36c | Open button (default desktop player) | ✅ | `os.startfile` on Windows; only files inside the downloads folder can be opened or streamed |
 | 37 | Output folder display + Open folder button | ✅ | |
-| 38 | Update downloader button | ✅ | |
+| 38 | Update button | ✅ | One button for program + yt-dlp (see #25) |
 | 39 | View run log in page | ✅ | |
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
 | 41 | Windows `Start.bat` launcher | ✅ | Creates `.venv`, installs only when `requirements.txt` changed, launches console |
@@ -142,7 +141,7 @@ Tracks features, their implementation status, and notes.
 
 | Issue | Status | Notes |
 |-------|--------|-------|
-| yt-dlp breaks when YouTube changes its backend | ⚠️ Ongoing | Use the "Update downloader" button or `Update.bat`; `requirements.txt` pins `>=2026.8.19` |
+| yt-dlp breaks when YouTube changes its backend | ⚠️ Ongoing | Use the **Update** button or `Update.bat`; `requirements.txt` pins `>=2026.8.19` |
 | "No supported JavaScript runtime" warning | ⚠️ External | Some formats may be missing without Deno; downloads still work. Installing Deno is optional |
 | 4K files are VP9/AV1 + Opus in an MP4 container | ⚠️ By design | Plays in VLC, Chrome, modern Windows; very old players may need codecs. Choose Format: MKV if a player struggles |
 | First run needs internet for pip and the FFmpeg download | ⚠️ | Later runs work offline (apart from YouTube itself) |

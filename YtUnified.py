@@ -5,7 +5,7 @@ YtUnified.py - command-line front end for yt_engine.
     python YtUnified.py                       interactive menu
     python YtUnified.py --url URL [options]   one download, then exit
     python YtUnified.py --list-formats URL    show available formats
-    python YtUnified.py --update              upgrade yt-dlp
+    python YtUnified.py --update              update the program and yt-dlp
 
 Exit codes: 0 success, 1 download/detection failure, 2 bad arguments.
 For the browser-based console see yt_web.py / Start.bat.
@@ -22,7 +22,7 @@ from yt_engine import (
     QUALITIES, QUALITY_LABELS, QUALITY_MENU,
     Downloader, EngineError, MediaInfo, Progress, Settings,
     ensure_ffmpeg, is_video_in_playlist_url, is_youtube_url,
-    normalize_quality, parse_selection, update_ytdlp, ytdlp_version,
+    normalize_quality, parse_selection, ytdlp_version,
 )
 
 
@@ -254,7 +254,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
                    help="Load cookies from a browser, e.g. chrome, firefox, edge")
     p.add_argument("--cookies-file", metavar="PATH", help="Path to a cookies.txt file")
     p.add_argument("--list-formats", metavar="URL", help="List available formats for URL and exit")
-    p.add_argument("--update", action="store_true", help="Upgrade yt-dlp and exit")
+    p.add_argument("--update", action="store_true", help="Update the program and yt-dlp, then exit")
     p.add_argument("--version", action="version", version=f"%(prog)s (yt-dlp {ytdlp_version()})")
     return p
 
@@ -307,10 +307,9 @@ def main() -> int:
     settings = settings_from_args(args)
 
     if args.update:
-        print("Upgrading yt-dlp...")
-        ok, out = update_ytdlp()
-        print(out)
-        return 0 if ok else 1
+        from yt_update import update_all
+        result = update_all(print)
+        return 0 if result.ok else 1
 
     if args.list_formats:
         try:

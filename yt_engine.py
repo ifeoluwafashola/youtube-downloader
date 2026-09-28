@@ -417,19 +417,6 @@ def user_downloads_dir() -> Path:
     return Path.home() / "Downloads"
 
 
-def update_ytdlp() -> tuple[bool, str]:
-    """
-    Upgrade yt-dlp in the current interpreter's environment.
-    Returns (ok, pip output). A restart is needed for the new version to load.
-    """
-    proc = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-        capture_output=True, text=True,
-    )
-    output = (proc.stdout + "\n" + proc.stderr).strip()
-    return proc.returncode == 0, output
-
-
 def unique_stem(directory: Path, stem: str) -> str:
     """
     Return stem, or 'stem (N)', such that no *finished* file named

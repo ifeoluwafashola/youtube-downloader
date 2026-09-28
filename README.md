@@ -63,10 +63,10 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
   disk it is marked, and **Download again** fetches it once more.
 - Click the folder path in the header to change where files are saved
   (**Browse…** opens a normal folder picker). The choice is remembered.
-- **Open folder** opens the `downloads\` folder. **Update downloader** upgrades
-  yt-dlp when YouTube changes something and downloads start failing.
-  **Update app** fetches the latest version of this program from GitHub; a
-  banner appears automatically when one is available. Restart afterwards.
+- **Open folder** opens the download folder. **Update** fetches the latest
+  version of this program and of yt-dlp in one go; a banner appears when
+  something newer exists. Use it whenever downloads start failing - YouTube
+  changes things every few weeks. Restart the console afterwards.
 
 Files land in `Downloads\YouTube Downloader` unless you chose another folder.
 Playlists get their own subfolder. Every attempt is recorded in
@@ -82,7 +82,7 @@ The same engine is available without the browser:
 python YtUnified.py                                   interactive menu
 python YtUnified.py --url URL [--quality 1080] [--audio [mp3-320|wav-24|...]] [--items 1-5]
 python YtUnified.py --list-formats URL
-python YtUnified.py --update
+python yt_update.py                                   update program + yt-dlp
 ```
 
 Run `python YtUnified.py --help` for all options. Exit codes: 0 success,
@@ -108,9 +108,8 @@ work on current Windows builds.
 |------|---------|
 | `Start.bat` | Launcher for Windows |
 | `start.sh`, `Start.command` | Launcher for Linux / macOS (`.command` is the double-clickable wrapper) |
-| `Update.bat`, `update.sh` | Upgrade yt-dlp (`update.sh app` updates the program) |
-| `UpdateApp.bat` | Update this program from GitHub (Windows) |
-| `yt_update.py` | Update logic (git pull, or zip download for non-git installs) |
+| `Update.bat`, `update.sh` | Update the program and yt-dlp |
+| `yt_update.py` | Update logic: program (git pull, or zip for non-git installs) + yt-dlp (pip) |
 | `yt_web.py` | Web console (Flask, local only) |
 | `templates/index.html` | The web page (no internet-hosted assets) |
 | `yt_engine.py` | Download engine shared by the console and CLI |

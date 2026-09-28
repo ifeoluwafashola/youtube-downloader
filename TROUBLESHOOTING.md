@@ -36,7 +36,7 @@ You can always see which FFmpeg is in use: the console header shows `FFmpeg: bun
 
 YouTube changed something and the downloader needs updating. This happens every few weeks.
 
-1. Click **Update downloader** in the console (or run `Update.bat`).
+1. Click **Update** in the console (or run `Update.bat`).
 2. Close the console window and run `Start.bat` again.
 3. Retry the download.
 
@@ -46,19 +46,17 @@ If it still fails right after an update, the fix is probably not released yet �
 
 ## Keeping the program up to date
 
-There are two different things that can be updated:
+There is one **Update**. It fetches the latest version of the program *and* of yt-dlp (the part that talks to YouTube). You never need to know which one fixed your problem.
 
-| What | Why | How |
-|------|-----|-----|
-| **yt-dlp** (the part that talks to YouTube) | YouTube changed something; downloads fail with 403 / "not a bot" / "format not available" | **Update downloader** button, or `Update.bat` |
-| **This program** (console, engine, launcher) | New features or fixes were published on GitHub | **Update app** button, the blue banner that appears when a new version exists, or `UpdateApp.bat` |
+- In the console: the **Update** button, or the blue banner that appears when something newer exists.
+- Or double-click `Update.bat` (`update.sh` on Mac/Linux).
+- Afterwards, close the console window and run `Start.bat` again.
 
-After either update, close the console window and run `Start.bat` again.
+When to update: whenever downloads suddenly start failing with 403 / "Sign in to confirm you're not a bot" / "Requested format is not available". YouTube changes things every few weeks and yt-dlp follows within days.
 
-**"Local files have been modified; refusing to overwrite them"** — you (or someone) edited one of the program files.
-The updater will not destroy those edits. Either undo them, or open a terminal in the folder and run `git stash`, then update again.
+**"Local files have been modified; refusing to overwrite them"** — one of the program files was edited by hand (or copied in). The updater will not destroy those edits. Either undo them, or open a terminal in the folder and run `git stash`, then update again. yt-dlp is still updated in this case.
 
-**"Could not check for updates"** — no internet, or GitHub is blocked by a proxy/firewall. Downloads from YouTube may still work. Try `UpdateApp.bat` from a network that can reach github.com.
+**"Could not check for updates"** — no internet, or GitHub / PyPI is blocked by a proxy or firewall. Downloads from YouTube may still work. Try again from a network that can reach github.com.
 
 **Nothing happens after updating** — you must restart: close the black window and run `Start.bat`. The new files are on disk but the running program still has the old ones loaded.
 
