@@ -40,6 +40,9 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
 
 ## Using the console
 
+The first visit offers a short tour, and **? Help** (top right) has a plain-language
+guide at any time.
+
 - Paste a video or playlist link and click **Inspect**. You see the title,
   uploader, duration or the list of videos in the playlist.
 - Choose **Video** and a quality (Best / 4K / 1440p / 1080p / 720p / 480p) and a

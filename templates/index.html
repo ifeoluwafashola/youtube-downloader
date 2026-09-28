@@ -22,6 +22,17 @@
   .about dt { color:var(--muted); } .about dd { margin:0; word-break:break-all; }
   .about dd.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; }
   @media (max-width:640px) { .settings { grid-template-columns:1fr; } .settings .label { margin-bottom:-6px; } }
+  .mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+  .help { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:6px 28px; margin-top:8px; }
+  .help h3 { font-size:13px; margin:12px 0 4px; }
+  .help p, .help li { font-size:13px; margin:4px 0; line-height:1.5; }
+  .help ol { margin:4px 0; padding-left:20px; }
+  .help code { background:#f6f8fa; border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12px; }
+  .empty .steps { display:inline-block; text-align:left; margin:10px auto 0; padding-left:22px; color:var(--text); }
+  .empty .steps li { margin:4px 0; }
+  #tour { position:fixed; inset:0; z-index:60; }
+  #tourHole { position:absolute; border-radius:8px; box-shadow:0 0 0 9999px rgba(20,24,30,.55); transition:all .25s; pointer-events:none; }
+  #tourBox { position:absolute; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; width:320px; max-width:calc(100vw - 32px); box-shadow:0 12px 40px rgba(0,0,0,.25); font-size:14px; }
   #overlay { position:fixed; inset:0; background:rgba(245,246,248,.85); display:flex; align-items:center; justify-content:center; z-index:50; }
   #overlay .box { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 32px; text-align:center; font-size:15px; box-shadow:0 12px 40px rgba(0,0,0,.12); }
   .spinner { width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; margin:0 auto 12px; animation:spin .9s linear infinite; }
@@ -99,11 +110,72 @@
   <div class="inner">
     <h1>YouTube Downloader</h1>
     <button id="btnUpdate" title="Get the latest version of this program and of yt-dlp (the part that talks to YouTube)">Update</button>
+    <button id="btnHelp" class="icon" aria-expanded="false" aria-controls="helpPanel" title="How to use this, and what to do when something goes wrong">? Help</button>
     <button id="btnSettings" class="icon" aria-expanded="false" aria-controls="settingsPanel" title="Download folder, versions, where things are stored">&#9881; Settings</button>
   </div>
 </header>
 
 <main>
+  <section id="welcome" class="card hidden" style="border-color:var(--accent)">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <b>Welcome.</b> This downloads YouTube videos and playlists to this computer, as video or audio.
+        <span class="muted">Want a 30-second look around?</span>
+      </div>
+      <div class="row">
+        <button class="primary small" id="btnTourStart">Take the tour</button>
+        <button class="small" id="btnTourSkip">No thanks</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="helpPanel" class="card hidden">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Help</h2>
+      <button class="small" id="btnTourAgain">Show me around</button>
+    </div>
+    <div class="help">
+      <section>
+        <h3>Getting started</h3>
+        <ol>
+          <li>Paste a YouTube link in the box at the top and click <b>Inspect</b>. The title and details appear so you can check it is the right thing.</li>
+          <li>Choose <b>Video</b> and a quality, or <b>Audio only</b> and a format (MP3 for listening, WAV for editing, <i>Original</i> for the smallest file).</li>
+          <li>Click <b>Add to queue</b>. Downloads run one after another; you can keep adding.</li>
+        </ol>
+      </section>
+      <section>
+        <h3>Playlists</h3>
+        <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones. Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
+        <p>A link that contains both a video and a playlist (<code>watch?v=…&amp;list=…</code>) asks which one you mean.</p>
+      </section>
+      <section>
+        <h3>Part of a video</h3>
+        <p>Tick <b>Clip</b> and enter from/to times such as <code>12:00</code> and <code>15:00</code>. Only that section is downloaded. Cuts land on the nearest keyframe, so allow a second or two either side.</p>
+      </section>
+      <section>
+        <h3>Several links at once</h3>
+        <p>Open <b>Add several links at once</b>, paste one link per line, choose the settings once, and add them all.</p>
+      </section>
+      <section>
+        <h3>Where files go</h3>
+        <p>Into <span id="helpFolder" class="mono"></span>. Change it under <b>⚙ Settings</b>. Each finished item shows its files with <b>Play</b> (in this page), <b>Open</b> (your media player) and <b>Show in folder</b>.</p>
+        <p>MKV files cannot play in the page - use Open. Prefer MP4 unless a player struggles with 4K.</p>
+      </section>
+      <section>
+        <h3>History</h3>
+        <p>The list is kept across restarts. If you delete a file from disk it is marked here and <b>Download again</b> fetches it once more. <b>Clear history</b> only clears this list - files are never deleted.</p>
+      </section>
+      <section>
+        <h3>When downloads stop working</h3>
+        <p>YouTube changes things every few weeks. If downloads suddenly fail (403, "not a bot", "format not available"), click <b>Update</b> at the top, then <b>Restart now</b>. A blue banner appears here when an update is available.</p>
+      </section>
+      <section>
+        <h3>Age-restricted or members-only videos</h3>
+        <p>These need your YouTube login. Start the console with <code>Start.bat --cookies-from-browser firefox</code> (Chrome and Edge do not allow this on Windows). See TROUBLESHOOTING.md in the program folder for details.</p>
+      </section>
+    </div>
+  </section>
+
   <section id="settingsPanel" class="card hidden">
     <h2>Settings</h2>
     <div class="settings">
@@ -143,7 +215,7 @@
   </div>
 
   <!-- Single URL -->
-  <section class="card">
+  <section class="card" id="addCard">
     <h2>Add a video or playlist</h2>
     <div class="row">
       <input type="text" id="url" placeholder="Paste a YouTube video or playlist link…" autofocus>
@@ -204,7 +276,7 @@
   </section>
 
   <!-- Bulk -->
-  <section class="card">
+  <section class="card" id="bulkCard">
     <details>
       <summary>Add several links at once</summary>
       <p class="muted" style="margin:8px 0">One link per line. Each one is inspected and downloaded in turn with the settings below.</p>
@@ -223,7 +295,7 @@
   </section>
 
   <!-- Queue -->
-  <section class="card">
+  <section class="card" id="queueCard">
     <div class="row" style="justify-content:space-between">
       <h2 style="margin:0">Queue &amp; history</h2>
       <div class="row">
@@ -237,7 +309,14 @@
         <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Quality</th><th>Status</th><th>Progress</th><th></th></tr></thead>
         <tbody id="jobs"></tbody>
       </table>
-      <div id="empty" class="empty">Nothing queued yet. Paste a link above to get started.</div>
+      <div id="empty" class="empty">
+        <b>Nothing here yet.</b> Three steps:
+        <ol class="steps">
+          <li>Paste a YouTube link above and click <b>Inspect</b></li>
+          <li>Pick <b>Video</b> or <b>Audio only</b>, and a quality</li>
+          <li>Click <b>Add to queue</b> - files go to <span id="emptyFolder" class="mono"></span> <span class="muted">(change in ⚙ Settings)</span></li>
+        </ol>
+      </div>
     </div>
     <pre id="logOut" class="out hidden"></pre>
   </section>
@@ -261,6 +340,19 @@
     <pre id="updateText" class="out"></pre>
   </div>
 </main>
+
+<div id="tour" class="hidden">
+  <div id="tourHole"></div>
+  <div id="tourBox">
+    <div id="tourStep" class="muted" style="font-size:12px"></div>
+    <div id="tourTitle" style="font-weight:600; margin:4px 0"></div>
+    <div id="tourText"></div>
+    <div class="row" style="margin-top:12px; justify-content:space-between">
+      <button class="small" id="tourClose">Skip</button>
+      <span class="row"><button class="small" id="tourBack">Back</button><button class="small primary" id="tourNext">Next</button></span>
+    </div>
+  </div>
+</div>
 
 <div id="overlay" class="hidden">
   <div class="box"><div class="spinner"></div><div id="overlayText">Restarting…</div></div>
@@ -346,6 +438,7 @@
         $('ffmpegFix').innerHTML = (s.ffmpeg_fix || []).map(f => `<li>${esc(f)}</li>`).join('');
       }
       $('outdir').textContent = s.output_dir;
+      $('emptyFolder').textContent = s.output_dir; $('helpFolder').textContent = s.output_dir;
       // Keep the input in step with the server unless the user is editing it.
       const fi = $('folderInput');
       if (document.activeElement !== fi && (fi.value === '' || fi.value === currentFolder)) fi.value = s.output_dir;
@@ -650,13 +743,58 @@
   $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
 
-  // Settings panel toggle.
-  $('btnSettings').onclick = () => {
-    const open = $('settingsPanel').classList.contains('hidden');
-    show($('settingsPanel'), open);
-    $('btnSettings').setAttribute('aria-expanded', String(open));
-    if (open) $('settingsPanel').scrollIntoView({ block: 'nearest' });
-  };
+  // Header panels (Help, Settings): one open at a time.
+  function togglePanel(panelId, btnId, force) {
+    const panel = $(panelId), btn = $(btnId);
+    const open = force !== undefined ? force : panel.classList.contains('hidden');
+    for (const [p, b] of [['helpPanel', 'btnHelp'], ['settingsPanel', 'btnSettings']]) {
+      const on = open && p === panelId;
+      show($(p), on); $(b).setAttribute('aria-expanded', String(on));
+    }
+    if (open) panel.scrollIntoView({ block: 'nearest' });
+  }
+  $('btnSettings').onclick = () => togglePanel('settingsPanel', 'btnSettings');
+  $('btnHelp').onclick = () => togglePanel('helpPanel', 'btnHelp');
+
+  // ---- First visit: welcome card + optional spotlight tour --------------------
+  const TOUR = [
+    { el: '#addCard', title: 'Start here', text: 'Paste a YouTube video or playlist link and click Inspect. You will see the title so you can check it is the right one, then choose Video or Audio and a quality.' },
+    { el: '#bulkCard', title: 'Several at once', text: 'Have a list? Open this and paste one link per line - they are all queued with the same settings.' },
+    { el: '#queueCard', title: 'Your downloads', text: 'Everything you add appears here with live progress. Finished items show their files with Play, Open and Show in folder. The list is kept across restarts, and anything you delete from disk can be downloaded again.' },
+    { el: '#btnSettings', title: 'Settings', text: 'Change where files are saved, and see which versions are installed.' },
+    { el: '#btnUpdate', title: 'When downloads stop working', text: 'YouTube changes things every few weeks. If downloads suddenly fail, click Update, then Restart now. A blue banner appears when an update is available. That is the whole tour.' },
+  ];
+  let tourIndex = -1;
+  function tourShow(i) {
+    tourIndex = i;
+    const step = TOUR[i];
+    const el = document.querySelector(step.el);
+    if (!el) { tourEnd(); return; }
+    show($('tour'), true);
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(() => {
+      const r = el.getBoundingClientRect(), pad = 8;
+      Object.assign($('tourHole').style, { left: (r.left - pad) + 'px', top: (r.top - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: (r.height + 2 * pad) + 'px' });
+      $('tourStep').textContent = `Step ${i + 1} of ${TOUR.length}`;
+      $('tourTitle').textContent = step.title; $('tourText').textContent = step.text;
+      $('tourBack').disabled = i === 0; $('tourNext').textContent = i === TOUR.length - 1 ? 'Done' : 'Next';
+      // Place the box below the target when there is room, else above; keep on screen.
+      const box = $('tourBox'); const bw = Math.min(320, window.innerWidth - 32);
+      let top = r.bottom + pad + 10; if (top + 180 > window.innerHeight) top = Math.max(16, r.top - pad - 190);
+      let left = Math.min(Math.max(16, r.left), window.innerWidth - bw - 16);
+      Object.assign(box.style, { top: top + 'px', left: left + 'px' });
+    }, 350);
+  }
+  function tourEnd() { show($('tour'), false); tourIndex = -1; prefs.set('tourDone', '1'); show($('welcome'), false); }
+  $('tourNext').onclick = () => tourIndex < TOUR.length - 1 ? tourShow(tourIndex + 1) : tourEnd();
+  $('tourBack').onclick = () => tourIndex > 0 && tourShow(tourIndex - 1);
+  $('tourClose').onclick = tourEnd;
+  document.addEventListener('keydown', e => { if (tourIndex >= 0 && e.key === 'Escape') tourEnd(); });
+  window.addEventListener('resize', () => { if (tourIndex >= 0) tourShow(tourIndex); });
+  $('btnTourStart').onclick = () => { togglePanel('helpPanel', 'btnHelp', false); tourShow(0); };
+  $('btnTourAgain').onclick = () => { togglePanel('helpPanel', 'btnHelp', false); tourShow(0); };
+  $('btnTourSkip').onclick = () => { prefs.set('tourDone', '1'); show($('welcome'), false); };
+  if (!prefs.get('tourDone')) show($('welcome'), true);
 
   // Download folder.
   $('folderInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFolderSave').click(); });
