@@ -83,7 +83,7 @@ Tracks features, their implementation status, and notes.
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 31 | Local Flask server, browser auto-opens | ✅ | Bound to 127.0.0.1 only; `--port`, `--output`, `--no-browser` |
+| 31 | Local Flask server, browser auto-opens | ✅ | Bound to 127.0.0.1 only; `--port`, `--output`, `--no-browser`. State-changing requests must be same-origin JSON, so a web page you visit cannot drive the console (CSRF guard). Console window shows only the status lines - no dev-server banner or per-request log |
 | 32 | Inspect URL → show title / uploader / duration / entry list | ✅ | |
 | 33 | Per-job quality, audio-only, playlist scope | ✅ | Range inputs or checkbox picker with select all / none |
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |

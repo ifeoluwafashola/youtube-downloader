@@ -20,6 +20,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -126,6 +127,7 @@ class Job:
     def from_record(cls, d: dict) -> "Job":
         job = cls(**{k: d.get(k, getattr(cls, k, None)) for k in cls.PERSISTED if k in d or k == "id" or k == "url"})
         job.log = deque(d.get("log") or [], maxlen=300)
+        job.files = job.files or []
         job.audio = normalize_audio(job.audio) or ""      # older records stored a bool
         if job.status in (INSPECTING, DOWNLOADING):
             job.status = INTERRUPTED
@@ -284,7 +286,8 @@ class QueueWorker:
                     return "queued"
                 if job.status in (INSPECTING, DOWNLOADING):
                     self._cancel_requested.add(job_id)
-                    self.downloader.cancel()
+                    if self._current is job:
+                        self.downloader.cancel()
                     job.detail = "Cancelling..."
                     return "running"
         return ""
@@ -314,7 +317,8 @@ class QueueWorker:
             now = time.time()
             if now - self._last_files_check > 10:
                 self._last_files_check = now
-                if any(j.refresh_files() for j in self.jobs if j.status in TERMINAL):
+                changed = [j.refresh_files() for j in self.jobs if j.status in TERMINAL]
+                if any(changed):
                     self._dirty = True
             snap = [j.to_dict() for j in self.jobs]
             dirty = self._dirty
@@ -427,6 +431,23 @@ worker: QueueWorker  # created in main()
 
 def _bad(msg: str, code: int = 400):
     return jsonify({"error": msg}), code
+
+
+@app.before_request
+def _reject_cross_site():
+    """
+    The console has no login (it only listens on 127.0.0.1), so make sure a web
+    page you happen to visit cannot drive it: state-changing requests must come
+    from this page (same Origin) and be JSON, which HTML forms cannot send.
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    origin = request.headers.get("Origin")
+    if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
+        return _bad("Cross-site request refused.", 403)
+    if not request.is_json:
+        return _bad("Requests must be JSON (Content-Type: application/json).", 415)
+    return None
 
 
 @app.get("/")
@@ -701,6 +722,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main():
     global worker
+    # Line-buffer stdout so status lines appear immediately even when redirected to a file.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
     args = build_arg_parser().parse_args()
     migrate_legacy_state()
     saved = load_settings()
@@ -735,6 +761,14 @@ def main():
     print(f"Open      : {url}   (Ctrl+C to stop)")
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    # Keep the console readable: no dev-server banner, no line per poll request.
+    import logging
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    try:
+        import flask.cli
+        flask.cli.show_server_banner = lambda *_a, **_k: None
+    except Exception:
+        pass
     app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True, use_reloader=False)
 
 
