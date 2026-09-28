@@ -40,7 +40,7 @@ Tracks features, their implementation status, and notes.
 | 6 | Metadata embedding | ✅ | FFmpegMetadata postprocessor |
 | 7 | Collision-safe filenames — `title [1080p] (1).mp4` | ✅ | Resolution tag is the *actual* downloaded height, not the cap. Only finished files count as collisions; `.part` / `.fNNN` intermediates are ignored so interrupted downloads resume instead of being renamed |
 | 8 | Single network round-trip per video download | ✅ | Metadata from the format-selection pass is reused for the download (same path as `--load-info-json`) |
-| 9 | Section/clip download (start–end timestamp) | 🔲 | `download_ranges`; `--start`/`--end` flags planned |
+| 9 | Clip download (start–end timestamp) | ✅ | Console: "Clip" tick box on single videos, times as `mm:ss` / `h:mm:ss` / `90` / `1m30s`; either side may be empty. yt-dlp hands the range to FFmpeg, which fetches only that section (cuts land on keyframes, so a second or two of slack is normal). File is tagged `[1080p 12.00-15.00]` |
 | 10 | Format inspection | ✅ | `YtUnified.py --list-formats URL` |
 | 11 | Subtitle handling | ❌ | Dropped; Whisper is the better path for caption harvesting |
 | 12 | No-FFmpeg fallback (pre-merged single file) | ⚠️ | Still present but YouTube now rarely serves pre-merged formats; a clear error is shown instead of a cryptic yt-dlp message |
@@ -89,7 +89,8 @@ Tracks features, their implementation status, and notes.
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
 | 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time. Rows are patched in place (a cell is only re-rendered when it changes), so scroll position and text selection in a log survive refreshes |
 | 35a | Copy log button | ✅ | Copies the job's yt-dlp output to the clipboard; last 300 lines kept per job |
-| 36 | Remove queued job / clear finished | ✅ | Running jobs cannot be cancelled mid-download yet |
+| 36 | Remove queued job / clear history | ✅ | |
+| 36e | Cancel a running download | ✅ | Engine raises `DownloadCancelled` from its hooks; partial `.part` files stay so a retry resumes |
 | 36a | Finished files listed per job with size | ✅ | Total size shown in the status column; lists longer than 5 files collapse behind a summary |
 | 36b | Play button (in-page player) | ✅ | Streams from the local server with seeking (HTTP Range); MP4/WebM/MP3/M4A/OGG/Opus. Falls back to a hint if the browser cannot decode the codec |
 | 36d | Show in folder button per finished job | ✅ | Opens the job's actual folder (playlist subfolder included) with the file highlighted: `explorer /select,` on Windows, `open -R` on macOS |
@@ -100,8 +101,9 @@ Tracks features, their implementation status, and notes.
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
 | 41 | Windows `Start.bat` launcher | ✅ | Creates `.venv`, installs only when `requirements.txt` changed, launches console |
 | 42 | macOS `.command` launcher | 🔲 | |
-| 43 | Cancel a running download | 🔲 | Needs a cooperative abort hook in the engine |
-| 44 | Choose output folder from the page | 🔲 | Currently fixed per launch (`--output`) |
+| 43 | Queue history across restarts | ✅ | `history.json` (last 500 jobs, incl. logs). Jobs that were running when the console closed show as INTERRUPTED. Files are re-checked every 10 s; deleted ones are struck through and the job gets a "Download again" button |
+| 43a | Download again | ✅ | Re-queues with the same URL and options and `force=True`: playlist archive ignored, but files still on disk are skipped, so only what is missing is fetched |
+| 44 | Choose output folder from the page | ✅ | Click the folder path in the header; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` and used on the next start unless `--output` is given. Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |
 | 45 | Batch import from .xlsx / .txt | ❌ | Superseded by bulk paste (#34) |
 | 46 | Standalone executable (PyInstaller) | 🔲 | |
 
@@ -112,7 +114,7 @@ Tracks features, their implementation status, and notes.
 | 47 | argparse CLI | ✅ | `--url --quality --audio --output --items --no-playlist --no-ffmpeg --cookies-from-browser --cookies-file --list-formats --update --version` |
 | 48 | Exit codes | ✅ | 0 success/skipped, 1 failure, 2 bad arguments, 130 interrupted |
 | 49 | Interactive mode honours `--output` and cookie flags | ✅ | Previously hard-coded `./downloads` |
-| 50 | `--start` / `--end` clip flags | 🔲 | With #9 |
+| 50 | `--start` / `--end` clip flags | 🔲 | Engine supports it (`download(start=, end=)`); CLI flags not wired yet |
 
 ## Logging
 
@@ -127,7 +129,7 @@ Tracks features, their implementation status, and notes.
 |---|------|--------|-------|
 | 53 | Engine / UI separation | ✅ | `yt_engine.Downloader` takes `on_message` / `on_progress` callbacks; `Settings` dataclass replaces module globals |
 | 54 | One download path instead of four near-duplicate functions | ✅ | `_format_opts()` + `_download_video()` / `_download_playlist()` |
-| 55 | Unit tests | ✅ | 29 tests over the pure functions; network paths tested manually |
+| 55 | Unit tests | ✅ | 44 tests over the pure functions; network paths tested manually |
 | 56 | Legacy scripts retired | ✅ | Moved to `legacy/`; not maintained |
 
 ---

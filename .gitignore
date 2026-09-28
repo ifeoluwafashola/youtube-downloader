@@ -20,3 +20,7 @@ __pycache__/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Runtime state written by yt_web.py (queue history and chosen download folder)
+history.json
+settings.json

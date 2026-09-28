@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import csv
 import glob
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -62,6 +64,7 @@ STATUS_SUCCESS = "SUCCESS"
 STATUS_PARTIAL = "PARTIAL"
 STATUS_FAILED = "FAILED"
 STATUS_SKIPPED = "SKIPPED"
+STATUS_CANCELLED = "CANCELLED"
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +144,44 @@ def format_duration(seconds) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
+def parse_timestamp(text) -> Optional[float]:
+    """
+    Parse a clip position: '90', '1:30', '1:02:03', '90.5', '1m30s', '2h'.
+    Returns seconds, or None if empty/unrecognised.
+    """
+    if text is None:
+        return None
+    text = str(text).strip().lower()
+    if not text:
+        return None
+    try:
+        if ":" in text:
+            parts = [float(p) for p in text.split(":")]
+            if len(parts) > 3 or any(p < 0 for p in parts):
+                return None
+            total = 0.0
+            for part in parts:
+                total = total * 60 + part
+            return total
+        if text.replace(".", "", 1).isdigit():
+            return float(text)
+        m = re.fullmatch(r"(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s)?", text)
+        if m and any(m.groups()):
+            h, mnt, sec = (float(g) if g else 0.0 for g in m.groups())
+            return h * 3600 + mnt * 60 + sec
+    except ValueError:
+        pass
+    return None
+
+
+def format_timestamp(seconds: float) -> str:
+    """Seconds -> 'h.mm.ss' / 'mm.ss' (dots, so it is safe inside a filename)."""
+    seconds = int(round(seconds))
+    h, rem = divmod(seconds, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}.{m:02d}.{sec:02d}" if h else f"{m:02d}.{sec:02d}"
+
+
 @dataclass
 class FFmpegStatus:
     available: bool
@@ -204,6 +245,13 @@ def _check_candidate(directory: Optional[Path], exe: str, source: str, rejected:
     if not probe.is_file() and not (directory is None and shutil.which("ffprobe")):
         rejected.append(f"{source} FFmpeg at {exe} has no ffprobe next to it (needed for MP3 and thumbnails)")
         return None
+    if directory is not None:
+        # Some yt-dlp code paths (notably clip downloads via FFmpegFD.available())
+        # look only on PATH and ignore the ffmpeg_location option, so make the
+        # chosen copy visible there too for this process.
+        current = os.environ.get("PATH", "")
+        if str(directory) not in current.split(os.pathsep):
+            os.environ["PATH"] = str(directory) + os.pathsep + current
     return FFmpegStatus(True, str(directory) if directory else None, source,
                         detail=f"{exe}; " + "; ".join(rejected) if rejected else exe, version=note)
 
@@ -498,6 +546,7 @@ class Downloader:
         self._lock = threading.Lock()
         self._completed: list[str] = []
         self._last_pp_event = None
+        self._cancel = threading.Event()
 
     # -- option builders ----------------------------------------------------
 
@@ -510,6 +559,9 @@ class Downloader:
                 opts["ffmpeg_location"] = location
         opts["logger"] = logger or _Logger(self.on_message)
         opts["noprogress"] = True             # we render progress ourselves
+        # With a logger set, quiet only affects direct console output - notably
+        # it makes yt-dlp run ffmpeg with -loglevel quiet during clip downloads.
+        opts["quiet"] = True
         opts["progress_hooks"] = [self._progress_hook]
         opts["postprocessor_hooks"] = [self._pp_hook]
         return opts
@@ -545,7 +597,14 @@ class Downloader:
 
     # -- hooks ----------------------------------------------------------------
 
+    def _check_cancel(self):
+        if self._cancel.is_set():
+            # yt-dlp treats this exception specially: it aborts the whole
+            # download (all remaining playlist items too) and re-raises it.
+            raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+
     def _progress_hook(self, d: dict):
+        self._check_cancel()
         info = d.get("info_dict") or {}
         total = d.get("total_bytes") or d.get("total_bytes_estimate")
         done = d.get("downloaded_bytes")
@@ -563,6 +622,7 @@ class Downloader:
         ))
 
     def _pp_hook(self, d: dict):
+        self._check_cancel()
         info = d.get("info_dict") or {}
         pp = d.get("postprocessor", "")
         # yt-dlp registers hooks twice on postprocessors declared in params,
@@ -585,6 +645,14 @@ class Downloader:
             self._completed.append(info.get("filepath") or info.get("_filename") or "")
 
     # -- public API -----------------------------------------------------------
+
+    def cancel(self):
+        """
+        Ask the download in progress to stop. Safe to call from another thread.
+        The running download() returns a CANCELLED Result shortly afterwards;
+        partial .part files are left in place so a retry can resume.
+        """
+        self._cancel.set()
 
     def inspect(self, url: str, noplaylist: bool = False) -> MediaInfo:
         """
@@ -648,7 +716,8 @@ class Downloader:
 
     def download(self, url: str, *, kind: Optional[str] = None, quality: str = "best",
                  audio: bool = False, items: str = "", noplaylist: bool = False,
-                 title: str = "") -> Result:
+                 title: str = "", start: Optional[float] = None, end: Optional[float] = None,
+                 force: bool = False) -> Result:
         """
         Download a video or playlist and append a line to the run log.
 
@@ -656,21 +725,31 @@ class Downloader:
         quality: one of QUALITIES (ignored when audio=True).
         items: yt-dlp playlist_items string, "" for all (playlists only).
         noplaylist: for watch?v=..&list=.. URLs, download just the video.
+        start/end: clip boundaries in seconds (single videos; needs FFmpeg).
+        force: ignore the playlist download archive, so items whose files were
+               deleted are fetched again (files still present are skipped).
         """
         quality = normalize_quality(quality) or "best"
+        if (start is not None or end is not None) and not self.settings.ffmpeg:
+            return Result(STATUS_FAILED, detail="Clip download requires FFmpeg.")
         with self._lock:
             self._completed = []
             self._last_pp_event = None
+            self._cancel.clear()
             logger = _Logger(self.on_message)
             self.settings.output_dir.mkdir(parents=True, exist_ok=True)
             try:
                 if kind is None or not title:
                     info = self.inspect(url, noplaylist=noplaylist)
                     kind, title = kind or info.kind, title or info.title
+                self._check_cancel()
                 if kind == "playlist":
-                    retcode = self._download_playlist(url, quality, audio, items, logger)
+                    retcode = self._download_playlist(url, quality, audio, items, logger, force)
                 else:
-                    retcode = self._download_video(url, quality, audio, logger)
+                    retcode = self._download_video(url, quality, audio, logger, start, end)
+            except yt_dlp.utils.DownloadCancelled:
+                result = Result(STATUS_CANCELLED, detail="Cancelled by user",
+                                completed=len(self._completed), files=list(self._completed))
             except (yt_dlp.utils.DownloadError, EngineError) as e:
                 detail = _clean_error(e)
                 if "Requested format is not available" in detail and not audio and not self.settings.ffmpeg:
@@ -688,11 +767,21 @@ class Downloader:
 
     # -- download paths -------------------------------------------------------
 
-    def _download_video(self, url, quality, audio, logger) -> int:
+    def _download_video(self, url, quality, audio, logger, start=None, end=None) -> int:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
         opts.update(self._format_opts(quality, audio))
         opts["noplaylist"] = True
+
+        clip_tag = ""
+        if start is not None or end is not None:
+            lo = max(0.0, float(start or 0))
+            hi = float(end) if end is not None else None
+            if hi is not None and hi <= lo:
+                raise EngineError("Clip end must be after clip start.")
+            # yt-dlp hands the range to ffmpeg, which downloads only that section.
+            opts["download_ranges"] = yt_dlp.utils.download_range_func(None, [(lo, hi if hi is not None else float("inf"))])
+            clip_tag = f"{format_timestamp(lo)}-{format_timestamp(hi) if hi is not None else 'end'}"
 
         # Pass 1: resolve metadata and select the format, so the filename can
         # carry the *actual* height and be checked for collisions.
@@ -700,11 +789,16 @@ class Downloader:
             info = ydl.extract_info(url, download=False)
         if not info or info.get("_type") == "playlist":
             raise EngineError("URL resolved to a playlist, not a single video.")
+        self._check_cancel()
 
         title = info.get("title") or "video"
         safe_title = yt_dlp.utils.sanitize_filename(title, restricted=False)
-        tag = "" if audio else (f"{info['height']}p" if info.get("height") else f"{quality}p")
-        stem = unique_stem(out, f"{safe_title} [{tag}]" if tag else safe_title)
+        tags = []
+        if not audio:
+            tags.append(f"{info['height']}p" if info.get("height") else f"{quality}p")
+        if clip_tag:
+            tags.append(clip_tag)
+        stem = unique_stem(out, f"{safe_title} [{' '.join(tags)}]" if tags else safe_title)
         opts["outtmpl"] = str(out / f"{stem}.%(ext)s")
 
         # Pass 2: download using the already-fetched info (same path yt-dlp
@@ -713,7 +807,7 @@ class Downloader:
             ydl.process_ie_result(ydl.sanitize_info(info, remove_private_keys=True), download=True)
         return 0
 
-    def _download_playlist(self, url, quality, audio, items, logger) -> int:
+    def _download_playlist(self, url, quality, audio, items, logger, force=False) -> int:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
         opts.update(self._format_opts(quality, audio))
@@ -724,11 +818,14 @@ class Downloader:
                 # Empty template = do not write the playlist's own thumbnail file.
                 "pl_thumbnail": "",
             },
-            # Separate archives per mode so an MP3 run does not hide a later video run.
-            "download_archive": str(out / f"archive_{mode}.txt"),
             # Skip unavailable items but still report failure via the return code.
             "ignoreerrors": "only_download",
         })
+        if not force:
+            # Separate archives per mode so an MP3 run does not hide a later video run.
+            # With force=True the archive is ignored; yt-dlp still skips files that
+            # already exist on disk, so only missing items are fetched.
+            opts["download_archive"] = str(out / f"archive_{mode}.txt")
         if items:
             opts["playlist_items"] = items
         with yt_dlp.YoutubeDL(opts) as ydl:

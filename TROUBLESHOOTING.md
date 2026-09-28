@@ -114,6 +114,18 @@ The number in brackets is the resolution that was **actually available**, not wh
 
 ---
 
+## A clip is a second or two longer / shorter than I asked
+
+Normal. The cut is made at the nearest video keyframe so the clip does not need to be re-encoded (which keeps it fast and lossless). Ask for a slightly wider range if the exact boundary matters.
+
+---
+
+## "Browse…" does nothing or shows an error
+
+The folder picker is a small system dialog opened on this computer. It can appear *behind* the browser window — check the taskbar. If it is not available at all, just type or paste the folder path into the box and click Save.
+
+---
+
 ## A download was interrupted
 
 Just queue it again. Partial `.part` files are resumed, not restarted.
@@ -125,7 +137,8 @@ Just queue it again. Partial `.part` files are resumed, not restarted.
 | What | Where |
 |------|-------|
 | Downloaded files | `downloads\` (playlists get their own subfolder) |
-| Run log (every attempt, with status) | `downloads\download_log.txt` |
+| Run log (every attempt, with status) | `download_log.txt` inside the download folder |
+| Queue history and chosen folder | `history.json`, `settings.json` next to `Start.bat` — safe to delete |
 | Private Python environment | `.venv\` — safe to delete; `Start.bat` recreates it |
 | Downloaded FFmpeg copy | inside `.venv\Lib\site-packages\static_ffmpeg\bin\` |
 | Your own FFmpeg copy (optional) | `bin\ffmpeg.exe`, `bin\ffprobe.exe` |

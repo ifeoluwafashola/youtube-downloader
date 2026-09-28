@@ -94,3 +94,21 @@ def test_settings_cookie_opts(tmp_path):
     assert Settings(cookies_file=cookie_file).cookie_opts() == {}      # missing file -> ignored
     cookie_file.touch()
     assert Settings(cookies_file=cookie_file).cookie_opts() == {"cookiefile": str(cookie_file)}
+
+
+from yt_engine import format_timestamp, parse_timestamp  # noqa: E402
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("90", 90), ("1:30", 90), ("1:02:03", 3723), ("90.5", 90.5), ("0", 0),
+    ("1m30s", 90), ("2h", 7200), ("45s", 45), ("12:00", 720),
+    ("", None), (None, None), ("abc", None), ("1:2:3:4", None), ("-5", None),
+])
+def test_parse_timestamp(raw, expected):
+    assert parse_timestamp(raw) == expected
+
+
+def test_format_timestamp_is_filename_safe():
+    assert format_timestamp(90) == "01.30"
+    assert format_timestamp(3723) == "1.02.03"
+    assert ":" not in format_timestamp(3723)

@@ -29,18 +29,24 @@ Keep the black console window open while downloading; close it to stop.
   individual videos.
 - Links of the form `watch?v=...&list=...` ask whether you want just that video
   or the whole playlist.
+- Tick **Clip** on a single video to download only part of it, e.g. from
+  `12:00` to `15:00`. Leave one side empty for "from the start" / "to the end".
 - **Add several links at once** lets you paste a list, one per line.
-- The queue shows live progress. Finished items list every file with its size,
-  a **Play** button (plays right in the page) and an **Open** button (opens it
-  in your usual media player). **Show in folder** opens the folder the files
-  were saved to, with the file highlighted.
+- The queue shows live progress; a running download can be **Cancelled**.
+  Finished items list every file with its size, a **Play** button (plays right
+  in the page) and an **Open** button (opens it in your usual media player).
+  **Show in folder** opens the folder the files were saved to.
+- The list is kept as history across restarts. If a file is later deleted from
+  disk it is marked, and **Download again** fetches it once more.
+- Click the folder path in the header to change where files are saved
+  (**Browse…** opens a normal folder picker). The choice is remembered.
 - **Open folder** opens the `downloads\` folder. **Update downloader** upgrades
   yt-dlp when YouTube changes something and downloads start failing.
   **Update app** fetches the latest version of this program from GitHub; a
   banner appears automatically when one is available. Restart afterwards.
 
-Files land in `downloads\`. Playlists get their own subfolder. Every attempt is
-recorded in `downloads\download_log.txt`.
+Files land in `downloads\` unless you chose another folder. Playlists get their
+own subfolder. Every attempt is recorded in `download_log.txt` inside that folder.
 
 ## Command line
 

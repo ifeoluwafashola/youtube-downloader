@@ -60,6 +60,10 @@
   .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:260px; }
   .files .fsize { color:var(--muted); min-width:60px; }
   .files .badge { font-weight:400; }
+  .files li.missing .fname { text-decoration:line-through; color:var(--muted); }
+  .files .miss { color:var(--bad); font-size:11px; }
+  .badge.INTERRUPTED { background:var(--warn); } .badge.CANCELLED { background:var(--skip); }
+  td .small + .small { margin-left:4px; }
   dialog#player { border:0; border-radius:10px; padding:0; max-width:min(960px,94vw); width:100%; background:#111; color:#fff; box-shadow:0 20px 60px rgba(0,0,0,.5); }
   dialog#player::backdrop { background:rgba(0,0,0,.6); }
   dialog#player .bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1c1c1c; }
@@ -75,7 +79,13 @@
   <span class="meta">version <b id="appver">…</b></span>
   <span class="meta">yt-dlp <b id="ver">…</b></span>
   <span class="meta">FFmpeg <b id="ffmpeg">…</b></span>
-  <span class="meta">Folder <b id="outdir" style="font-family:ui-monospace,Consolas,monospace">…</b></span>
+  <span class="meta">Folder <b id="outdir" style="font-family:ui-monospace,Consolas,monospace; cursor:pointer" title="Click to change the download folder">…</b></span>
+  <span id="folderEdit" class="row hidden" style="gap:6px">
+    <input type="text" id="folderInput" style="min-width:320px; font-family:ui-monospace,Consolas,monospace; font-size:12px">
+    <button class="small" id="btnBrowse" title="Pick a folder with the system dialog">Browse…</button>
+    <button class="small primary" id="btnFolderSave">Save</button>
+    <button class="small" id="btnFolderCancel">Cancel</button>
+  </span>
   <button id="btnOpen">Open folder</button>
   <button id="btnUpdate" title="Upgrade yt-dlp, the part that talks to YouTube">Update downloader</button>
   <button id="btnUpdateApp" title="Get the latest version of this program from GitHub">Update app</button>
@@ -119,6 +129,13 @@
       <div class="row">
         <label>Quality <select id="quality"></select></label>
         <label><input type="checkbox" id="audio"> Audio only (MP3)</label>
+        <label id="clipBox" class="hidden" title="Download only part of the video. Times as mm:ss or h:mm:ss. Leave one side empty for start/end of video.">
+          <input type="checkbox" id="clip"> Clip
+          <span id="clipFields" class="hidden">
+            from <input type="text" id="clipStart" placeholder="0:00" style="width:6em;min-width:0">
+            to <input type="text" id="clipEnd" placeholder="end" style="width:6em;min-width:0">
+          </span>
+        </label>
       </div>
       <div id="scope" class="hidden" style="margin-top:10px">
         <div class="row">
@@ -162,10 +179,11 @@
   <!-- Queue -->
   <section class="card">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0">Queue</h2>
+      <h2 style="margin:0">Queue &amp; history</h2>
       <div class="row">
+        <span class="muted" style="font-size:12px">History is kept across restarts. Files deleted from disk are marked and can be downloaded again.</span>
         <button id="btnLog" class="small">View run log</button>
-        <button id="btnClear" class="small">Clear finished</button>
+        <button id="btnClear" class="small" title="Remove all finished jobs from this list (files are not deleted)">Clear history</button>
       </div>
     </div>
     <div style="overflow:auto; margin-top:10px">
@@ -173,7 +191,7 @@
         <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Quality</th><th>Status</th><th>Progress</th><th></th></tr></thead>
         <tbody id="jobs"></tbody>
       </table>
-      <div id="empty" class="empty">Nothing queued yet.</div>
+      <div id="empty" class="empty">Nothing queued yet. Paste a link above to get started.</div>
     </div>
     <pre id="logOut" class="out hidden"></pre>
   </section>
@@ -209,6 +227,7 @@
 
   let info = null;          // last inspect result
   let updateDone = false;   // hide the banner after a successful in-page update
+  let editingFolder = false, currentFolder = '';
   let qualitiesLoaded = false;
 
   // ---- state polling -------------------------------------------------------
@@ -229,7 +248,8 @@
         $('ffmpegWarnText').textContent = s.ffmpeg_detail || 'FFmpeg was not found.';
         $('ffmpegFix').innerHTML = (s.ffmpeg_fix || []).map(f => `<li>${esc(f)}</li>`).join('');
       }
-      $('outdir').textContent = s.output_dir;
+      if (!editingFolder) $('outdir').textContent = s.output_dir;
+      currentFolder = s.output_dir;
       if (!qualitiesLoaded) {
         for (const sel of [$('quality'), $('bulkQuality')]) {
           sel.innerHTML = s.qualities.map(q => `<option value="${q.value}">${esc(q.label)}</option>`).join('');
@@ -288,23 +308,27 @@
   function patchRow(tr, j) {
     const active = j.status === 'DOWNLOADING' || j.status === 'INSPECTING';
     const pct = j.percent == null ? null : Math.max(0, Math.min(100, j.percent));
+    const missing = j.missing_files ? ` · <span style="color:var(--bad)">${j.missing_files} file(s) missing</span>` : '';
     const bar = active && pct == null
       ? `<div class="bar indeterminate"><div></div></div>`
       : `<div class="bar"><div style="width:${pct ?? 0}%"></div></div>`;
     const sub = active
       ? `${pct != null ? pct.toFixed(0) + '%' : ''} ${esc(j.speed)} ${j.eta ? 'ETA ' + esc(j.eta) : ''}<br>${esc(j.current)}`
-      : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : ''));
+      : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : '')) + missing;
 
     tr.querySelector('[data-cell-title]').title = j.url;
     setCell(tr, j, 'title', `${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>`);
     setCell(tr, j, 'files', (j.files || []).length ? renderFiles(j) : '');
     setCell(tr, j, 'kind', `${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}`);
-    setCell(tr, j, 'quality', esc(j.quality_label));
+    setCell(tr, j, 'quality', esc(j.quality_label) + (j.clip_label ? `<br><small class="muted">clip ${esc(j.clip_label)}</small>` : ''));
     setCell(tr, j, 'status', `<span class="badge ${j.status}">${j.status}</span>`);
     setCell(tr, j, 'prog', `${bar}<small>${sub}</small>`);
+    const anyFile = (j.files || []).some(f => f.exists !== false);
     setCell(tr, j, 'actions',
       (j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : '') +
-      ((j.files || []).length ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''));
+      (active ? `<button class="small" data-rm="${j.id}" ${j.detail === 'Cancelling...' ? 'disabled' : ''}>Cancel</button>` : '') +
+      (j.can_redownload ? `<button class="small" data-redl="${j.id}" title="Queue this again with the same settings">Download again</button>` : '') +
+      (anyFile ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''));
 
     // Log: update text only when it changed; if the user was reading the
     // bottom, follow it, otherwise leave their scroll position alone.
@@ -320,7 +344,9 @@
   }
 
   function renderFiles(j) {
-    const rows = j.files.map(f => `<li>
+    const rows = j.files.map(f => f.exists === false
+      ? `<li class="missing"><span class="fname" title="${esc(f.path)}">${esc(f.name)}</span><span class="fsize">${esc(f.size_text)}</span><span class="miss">file deleted</span></li>`
+      : `<li>
         <span class="fname" title="${esc(f.path)}">${esc(f.name)}</span>
         <span class="fsize">${esc(f.size_text)}</span>
         ${f.playable ? `<button class="small" data-play="${j.id}:${f.index}">Play</button>` : ''}
@@ -381,6 +407,8 @@
       copyLog(btn.dataset.copy, btn);
     } else if (btn.dataset.rm) {
       try { await api('/api/jobs/' + btn.dataset.rm, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); }
+    } else if (btn.dataset.redl) {
+      try { await api(`/api/jobs/${btn.dataset.redl}/redownload`, { method: 'POST' }); refresh(); } catch (err) { alert(err.message); }
     } else if (btn.dataset.play) {
       const [jobId, index] = btn.dataset.play.split(':');
       play(jobId, index, btn.parentElement.querySelector('.fname').textContent);
@@ -421,6 +449,8 @@
     }
     show($('mixed'), i.mixed_url);
     show($('scope'), i.kind === 'playlist');
+    show($('clipBox'), i.kind === 'video');
+    $('clip').checked = false; show($('clipFields'), false); $('clipStart').value = ''; $('clipEnd').value = '';
     $('entries').innerHTML = (i.entries || []).map(e =>
       `<label><input type="checkbox" value="${e.index}"><span class="idx">${e.index}</span><span>${esc(e.title)}</span></label>`).join('');
     document.querySelector('input[name=scope][value=all]').checked = true;
@@ -456,7 +486,10 @@
       const noplaylist = info.mixed_url && document.querySelector('input[name=mixed]:checked').value === 'video';
       const body = { url: info.url, kind: info.kind, title: info.title, quality: $('quality').value,
                      audio: $('audio').checked, noplaylist, items: info.kind === 'playlist' ? scopeItems() : '',
-                     total: info.count };
+                     total: info.count,
+                     start: (info.kind === 'video' && $('clip').checked) ? $('clipStart').value : '',
+                     end: (info.kind === 'video' && $('clip').checked) ? $('clipEnd').value : '' };
+      if (info.kind === 'video' && $('clip').checked && !body.start && !body.end) throw new Error('Enter a clip start and/or end time.');
       await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
       $('addMsg').textContent = 'Added to queue.';
       $('url').value = ''; info = null; show($('detected'), false);
@@ -483,10 +516,33 @@
   $('pickAll').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = true);
   $('pickNone').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = false);
   $('audio').onchange = () => $('quality').disabled = $('audio').checked;
+  $('clip').onchange = () => show($('clipFields'), $('clip').checked);
+
+  // Download folder: click the path to edit, Browse opens the OS picker (same machine).
+  function startFolderEdit() { editingFolder = true; $('folderInput').value = currentFolder; show($('folderEdit'), true); show($('outdir'), false); $('folderInput').focus(); }
+  function stopFolderEdit() { editingFolder = false; show($('folderEdit'), false); show($('outdir'), true); }
+  $('outdir').onclick = startFolderEdit;
+  $('btnFolderCancel').onclick = stopFolderEdit;
+  $('folderInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFolderSave').click(); if (e.key === 'Escape') stopFolderEdit(); });
+  $('btnFolderSave').onclick = async () => {
+    try {
+      const r = await api('/api/settings', { method: 'POST', body: JSON.stringify({ output_dir: $('folderInput').value }) });
+      currentFolder = r.output_dir; $('outdir').textContent = r.output_dir; stopFolderEdit();
+    } catch (err) { alert(err.message); }
+  };
+  $('btnBrowse').onclick = async () => {
+    $('btnBrowse').disabled = true;
+    try { const r = await api('/api/browse-folder', { method: 'POST' }); if (r.output_dir) $('folderInput').value = r.output_dir; }
+    catch (err) { alert(err.message); }
+    finally { $('btnBrowse').disabled = false; }
+  };
   $('bulkAudio').onchange = () => $('bulkQuality').disabled = $('bulkAudio').checked;
   $('btnAdd').onclick = addJob;
   $('btnBulk').onclick = addBulk;
-  $('btnClear').onclick = async () => { await api('/api/jobs/clear', { method: 'POST' }); refresh(); };
+  $('btnClear').onclick = async () => {
+    if (!confirm('Remove all finished jobs from the history? Downloaded files are not deleted.')) return;
+    await api('/api/jobs/clear', { method: 'POST' }); refresh();
+  };
   $('btnOpen').onclick = async () => { try { await api('/api/open-folder', { method: 'POST' }); } catch (e) { alert(e.message); } };
   $('btnLog').onclick = async () => {
     const el = $('logOut');
