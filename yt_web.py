@@ -18,6 +18,7 @@ import json
 import mimetypes
 import os
 import platform
+import shutil
 import subprocess
 import threading
 import time
@@ -37,6 +38,7 @@ from yt_update import check_for_update, current_version, update_app
 from yt_engine import (
     QUALITIES, QUALITY_LABELS,
     Downloader, EngineError, Progress, Settings,
+    AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio, user_data_dir, user_downloads_dir,
     ensure_ffmpeg, is_youtube_url, normalize_quality, parse_selection, parse_timestamp,
     update_ytdlp, ytdlp_version,
 )
@@ -62,9 +64,24 @@ INTERRUPTED = "INTERRUPTED"          # console was closed while this job was run
 TERMINAL = {"SUCCESS", "PARTIAL", "FAILED", "SKIPPED", "CANCELLED", INTERRUPTED}
 PLAYABLE = {".mp4", ".webm", ".mp3", ".m4a", ".ogg", ".opus"}
 
-HISTORY_FILE = BASE_DIR / "history.json"
-SETTINGS_FILE = BASE_DIR / "settings.json"
+# History and settings live in the user's profile, not the program folder, so
+# they survive deleting or re-downloading the program.
+DATA_DIR = user_data_dir()
+HISTORY_FILE = DATA_DIR / "history.json"
+SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_LIMIT = 500
+
+
+def migrate_legacy_state():
+    """Move history.json / settings.json written by earlier versions next to the scripts."""
+    for name in ("history.json", "settings.json"):
+        old, new = BASE_DIR / name, DATA_DIR / name
+        if old.is_file() and not new.is_file():
+            try:
+                shutil.move(str(old), str(new))   # works across drives, unlike Path.replace
+                print(f"Moved {name} to {DATA_DIR}")
+            except OSError as e:
+                print(f"Warning: could not move {name} to {DATA_DIR}: {e}")
 
 
 @dataclass
@@ -72,7 +89,7 @@ class Job:
     id: int
     url: str
     quality: str = "best"
-    audio: bool = False
+    audio: str = ""                  # "" for video, else an AUDIO_FORMATS code such as "mp3-320"
     items: str = ""
     noplaylist: bool = False
     start: Optional[float] = None    # clip boundaries in seconds (single videos)
@@ -109,6 +126,7 @@ class Job:
     def from_record(cls, d: dict) -> "Job":
         job = cls(**{k: d.get(k, getattr(cls, k, None)) for k in cls.PERSISTED if k in d or k == "id" or k == "url"})
         job.log = deque(d.get("log") or [], maxlen=300)
+        job.audio = normalize_audio(job.audio) or ""      # older records stored a bool
         if job.status in (INSPECTING, DOWNLOADING):
             job.status = INTERRUPTED
             job.detail = "The console was closed while this was downloading."
@@ -153,7 +171,8 @@ class Job:
         d = asdict(self)
         d["log"] = list(self.log)
         d["total_size_text"] = human_size(self.total_size) if self.total_size else ""
-        d["quality_label"] = "MP3 audio" if self.audio else QUALITY_LABELS.get(self.quality, self.quality)
+        d["quality_label"] = (AUDIO_FORMATS[self.audio][0] if self.audio in AUDIO_FORMATS
+                              else QUALITY_LABELS.get(self.quality, self.quality))
         d["clip_label"] = clip_label(self.start, self.end)
         d["missing_files"] = self.missing_files
         # A finished job can be fetched again when it failed, was cut short, or lost files.
@@ -357,7 +376,7 @@ class QueueWorker:
                 self.save()
                 result = self.downloader.download(
                     job.url, kind=job.kind, title=job.title, quality=job.quality,
-                    audio=job.audio, items=job.items, noplaylist=job.noplaylist,
+                    audio=job.audio or None, items=job.items, noplaylist=job.noplaylist,
                     start=job.start, end=job.end, force=job.force)
                 job.status, job.detail, job.completed = result.status, result.detail, result.completed
                 job.set_files(result.files)
@@ -423,7 +442,9 @@ def api_state():
         "jobs": worker.snapshot(),
         "settings": {
             "output_dir": str(s.output_dir.resolve()),
-            "default_output_dir": str((BASE_DIR / "downloads").resolve()),
+            "data_dir": str(DATA_DIR),
+            "audio_formats": [{"value": k, "label": v[0]} for k, v in AUDIO_FORMATS.items()],
+            "default_audio": DEFAULT_AUDIO,
             "ffmpeg": s.ffmpeg,
             "ffmpeg_source": ff.source,
             "ffmpeg_version": ff.version,
@@ -466,6 +487,13 @@ def api_add_jobs():
     quality = normalize_quality(data.get("quality", "best"))
     if quality is None:
         return _bad("Invalid quality.")
+    audio = ""
+    if data.get("audio"):
+        audio = normalize_audio(data.get("audio")) or ""
+        if not audio:
+            return _bad("Unknown audio format.")
+        if audio != "best" and not worker.settings.ffmpeg:
+            return _bad("Converting audio requires FFmpeg.")
 
     items = (data.get("items") or "").strip()
     if items and data.get("total"):
@@ -494,7 +522,7 @@ def api_add_jobs():
             skipped.append(url)
             continue
         job = worker.add(
-            url=url, quality=quality, audio=bool(data.get("audio")), items=items,
+            url=url, quality=quality, audio=audio, items=items,
             noplaylist=bool(data.get("noplaylist")), start=start, end=end,
             kind=data.get("kind") if len(urls) == 1 else None,
             title=(data.get("title") or "") if len(urls) == 1 else "",
@@ -674,8 +702,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main():
     global worker
     args = build_arg_parser().parse_args()
+    migrate_legacy_state()
     saved = load_settings()
-    output = args.output or saved.get("output_dir") or str(BASE_DIR / "downloads")
+    legacy_downloads = BASE_DIR / "downloads"
+    default_output = legacy_downloads if legacy_downloads.is_dir() else user_downloads_dir() / "YouTube Downloader"
+    output = args.output or saved.get("output_dir") or str(default_output)
     settings = Settings(
         output_dir=Path(output),
         cookies_from_browser=args.cookies_from_browser,
@@ -690,6 +721,7 @@ def main():
     url = f"http://127.0.0.1:{args.port}/"
     print(f"YouTube Downloader web console  |  yt-dlp {ytdlp_version()}")
     print(f"Downloads : {settings.output_dir.resolve()}")
+    print(f"History   : {DATA_DIR}")
     if ff.available:
         print(f"FFmpeg    : {ff.source} {ff.version} ({ff.location or ff.detail.split(';')[0]})")
         if ";" in ff.detail:

@@ -114,6 +114,12 @@ The number in brackets is the resolution that was **actually available**, not wh
 
 ---
 
+## WAV files are huge / "24-bit" does not sound better
+
+WAV is uncompressed: about 10 MB per minute at 16-bit, 15 MB at 24-bit. YouTube's audio is itself compressed (Opus or AAC, ~128 kbps), so no WAV setting can recover detail that was never there. Choose WAV when a program you use needs it (editing, DAW import); 24-bit gives extra headroom for processing, not more detail. For listening, MP3 320 kbps or "Original audio" is the sensible choice.
+
+---
+
 ## A clip is a second or two longer / shorter than I asked
 
 Normal. The cut is made at the nearest video keyframe so the clip does not need to be re-encoded (which keeps it fast and lossless). Ask for a slightly wider range if the exact boundary matters.
@@ -138,7 +144,7 @@ Just queue it again. Partial `.part` files are resumed, not restarted.
 |------|-------|
 | Downloaded files | `downloads\` (playlists get their own subfolder) |
 | Run log (every attempt, with status) | `download_log.txt` inside the download folder |
-| Queue history and chosen folder | `history.json`, `settings.json` next to `Start.bat` — safe to delete |
+| Queue history and chosen folder | `%LOCALAPPDATA%\YouTubeDownloader\history.json` and `settings.json` (shown at the bottom of the page) — safe to delete; kept outside the program folder so reinstalling does not lose them |
 | Private Python environment | `.venv\` — safe to delete; `Start.bat` recreates it |
 | Downloaded FFmpeg copy | inside `.venv\Lib\site-packages\static_ffmpeg\bin\` |
 | Your own FFmpeg copy (optional) | `bin\ffmpeg.exe`, `bin\ffprobe.exe` |

@@ -23,8 +23,10 @@ Keep the black console window open while downloading; close it to stop.
 
 - Paste a video or playlist link and click **Inspect**. You see the title,
   uploader, duration or the list of videos in the playlist.
-- Choose a quality (Best / 4K / 1440p / 1080p / 720p / 480p) or tick
-  **Audio only (MP3)**.
+- Choose **Video** and a quality (Best / 4K / 1440p / 1080p / 720p / 480p), or
+  **Audio only** and a format: MP3 at 320, 192 or 128 kbps, WAV at 16- or
+  24-bit, or the original stream with no conversion. Your last choice is
+  remembered.
 - For playlists, download **All**, a **Range** (e.g. 5–20), or **Pick**
   individual videos.
 - Links of the form `watch?v=...&list=...` ask whether you want just that video
@@ -45,8 +47,11 @@ Keep the black console window open while downloading; close it to stop.
   **Update app** fetches the latest version of this program from GitHub; a
   banner appears automatically when one is available. Restart afterwards.
 
-Files land in `downloads\` unless you chose another folder. Playlists get their
-own subfolder. Every attempt is recorded in `download_log.txt` inside that folder.
+Files land in `Downloads\YouTube Downloader` unless you chose another folder.
+Playlists get their own subfolder. Every attempt is recorded in
+`download_log.txt` inside that folder. History and settings are kept in your
+user profile (`%LOCALAPPDATA%\YouTubeDownloader`), so they survive deleting or
+re-downloading the program.
 
 ## Command line
 
@@ -54,7 +59,7 @@ The same engine is available without the browser:
 
 ```
 python YtUnified.py                                   interactive menu
-python YtUnified.py --url URL [--quality 1080] [--audio] [--items 1-5]
+python YtUnified.py --url URL [--quality 1080] [--audio [mp3-320|wav-24|...]] [--items 1-5]
 python YtUnified.py --list-formats URL
 python YtUnified.py --update
 ```

@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 from yt_engine import (
+    AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio,
     QUALITIES, QUALITY_LABELS, QUALITY_MENU,
     Downloader, EngineError, MediaInfo, Progress, Settings,
     ensure_ffmpeg, is_video_in_playlist_url, is_youtube_url,
@@ -123,23 +124,38 @@ def prompt_playlist_scope(info: MediaInfo) -> str | None:
     return None
 
 
-def prompt_mode() -> tuple[str, bool] | None:
-    """Return (quality, audio) or None if cancelled."""
+def prompt_audio_format() -> str | None:
+    codes = list(AUDIO_FORMATS)
+    print("\nAudio format:")
+    for i, code in enumerate(codes, 1):
+        print(f"{i}. {AUDIO_FORMATS[code][0]}")
+    sel = input(f"Enter choice (1-{len(codes)}, default 1): ").strip() or "1"
+    if sel.isdigit() and 1 <= int(sel) <= len(codes):
+        return codes[int(sel) - 1]
+    return normalize_audio(sel)
+
+
+def prompt_mode() -> tuple[str, str] | None:
+    """Return (quality, audio_code_or_empty) or None if cancelled."""
     print("\nDownload Options:")
     print("1. Download video (best quality)")
     print("2. Download video (choose quality)")
-    print("3. Download audio only (MP3)")
+    print("3. Download audio only (MP3 / WAV / original)")
     choice = input("\nSelect option (1-3): ").strip()
     if choice == "1":
-        return "best", False
+        return "best", ""
     if choice == "2":
         q = prompt_quality()
         if q is None:
             print("Invalid choice! Pick 0-5 or a valid resolution.")
             return None
-        return q, False
+        return q, ""
     if choice == "3":
-        return "best", True
+        a = prompt_audio_format()
+        if a is None:
+            print("Invalid audio format.")
+            return None
+        return "best", a
     print("Invalid option! Please choose 1-3.")
     return None
 
@@ -199,11 +215,11 @@ def interactive_main(settings: Settings):
                 print("No valid selection. Cancelled.")
                 continue
 
-        what = "MP3 audio" if audio else QUALITY_LABELS[quality]
+        what = AUDIO_FORMATS[audio][0] if audio else QUALITY_LABELS[quality]
         scope = "" if info.kind == "video" else (" (all videos)" if items == "" else f" (items {items})")
         print(f"\nDownloading {what}{scope}...")
         result = dl.download(url, kind=info.kind, title=info.title, quality=quality,
-                             audio=audio, items=items, noplaylist=noplaylist)
+                             audio=audio or None, items=items, noplaylist=noplaylist)
         report(result)
 
         if input("\nDownload another? (y/n): ").strip().lower() not in ("y", "yes"):
@@ -223,7 +239,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--url", help="YouTube video or playlist URL")
     p.add_argument("--quality", default="best",
                    help=f"Max resolution: {', '.join(QUALITIES)} (default best)")
-    p.add_argument("--audio", action="store_true", help="Download audio only as MP3")
+    p.add_argument("--audio", nargs="?", const=DEFAULT_AUDIO, metavar="FORMAT",
+                   help="Audio only. FORMAT: " + ", ".join(AUDIO_FORMATS) + f" (default {DEFAULT_AUDIO})")
     p.add_argument("--output", default="./downloads", help="Output directory (default ./downloads)")
     p.add_argument("--items", default="",
                    help="Playlist selection, e.g. '5-20' or '1,3,7' (playlists only; default all)")
@@ -257,6 +274,12 @@ def run_noninteractive(args, settings: Settings) -> int:
     if quality is None:
         print(f"Error: --quality must be one of {', '.join(QUALITIES)}.")
         return 2
+    audio = None
+    if args.audio:
+        audio = normalize_audio(args.audio)
+        if audio is None:
+            print(f"Error: --audio must be one of {', '.join(AUDIO_FORMATS)}.")
+            return 2
     if args.cookies_file and not settings.cookies_file.is_file():
         print(f"Warning: cookie file not found: {args.cookies_file}")
 
@@ -271,7 +294,7 @@ def run_noninteractive(args, settings: Settings) -> int:
     print(f"{info.kind}: {info.title}")
 
     result = dl.download(args.url, kind=info.kind, title=info.title, quality=quality,
-                         audio=args.audio, items=args.items, noplaylist=args.no_playlist)
+                         audio=audio, items=args.items, noplaylist=args.no_playlist)
     report(result)
     return 0 if result.ok or result.status == "SKIPPED" else 1
 

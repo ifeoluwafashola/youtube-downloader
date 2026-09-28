@@ -21,6 +21,6 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
-# Runtime state written by yt_web.py (queue history and chosen download folder)
+# Runtime state from versions before 0.3 (now kept in the user profile; migrated automatically)
 history.json
 settings.json

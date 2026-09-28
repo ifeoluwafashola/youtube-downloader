@@ -55,6 +55,14 @@
   details summary button { margin-left:6px; vertical-align:middle; }
   td.title pre.out { max-height:200px; white-space:pre; user-select:text; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .seg label { padding:6px 12px; cursor:pointer; background:#f6f8fa; border-right:1px solid var(--line); user-select:none; }
+  .seg label:last-child { border-right:0; }
+  .seg input { display:none; }
+  .seg input:checked + span { font-weight:600; }
+  .seg label:has(input:checked) { background:var(--accent); color:#fff; }
+  .hint { font-size:12px; color:var(--muted); }
+  footer { max-width:1100px; margin:8px auto 24px; padding:0 20px; font-size:12px; color:var(--muted); }
   .files { margin:6px 0 0; padding:0; list-style:none; font-size:12px; }
   .files li { display:flex; gap:8px; align-items:center; padding:2px 0; white-space:nowrap; }
   .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:260px; }
@@ -127,8 +135,12 @@
         <label><input type="radio" name="mixed" value="playlist"> Whole playlist</label>
       </div>
       <div class="row">
+        <span class="seg" id="typeSeg">
+          <label><input type="radio" name="type" value="video" checked><span>Video</span></label>
+          <label><input type="radio" name="type" value="audio"><span>Audio only</span></label>
+        </span>
         <label>Quality <select id="quality"></select></label>
-        <label><input type="checkbox" id="audio"> Audio only (MP3)</label>
+        <span class="hint" id="qualityHint"></span>
         <label id="clipBox" class="hidden" title="Download only part of the video. Times as mm:ss or h:mm:ss. Leave one side empty for start/end of video.">
           <input type="checkbox" id="clip"> Clip
           <span id="clipFields" class="hidden">
@@ -168,8 +180,11 @@
       <p class="muted" style="margin:8px 0">One link per line. Each one is inspected and downloaded in turn with the settings below.</p>
       <textarea id="bulk" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/playlist?list=..."></textarea>
       <div class="row" style="margin-top:8px">
+        <span class="seg">
+          <label><input type="radio" name="bulkType" value="video" checked><span>Video</span></label>
+          <label><input type="radio" name="bulkType" value="audio"><span>Audio only</span></label>
+        </span>
         <label>Quality <select id="bulkQuality"></select></label>
-        <label><input type="checkbox" id="bulkAudio"> Audio only (MP3)</label>
         <button id="btnBulk" class="primary">Add all to queue</button>
         <span id="bulkMsg" class="muted"></span>
       </div>
@@ -211,6 +226,7 @@
     <pre id="updateText" class="out"></pre>
   </div>
 </main>
+<footer>History and settings are stored in <span id="dataDir" style="font-family:ui-monospace,Consolas,monospace"></span> and survive reinstalling or deleting the program folder.</footer>
 
 <script>
 (() => {
@@ -228,7 +244,33 @@
   let info = null;          // last inspect result
   let updateDone = false;   // hide the banner after a successful in-page update
   let editingFolder = false, currentFolder = '';
-  let qualitiesLoaded = false;
+  let optionsLoaded = false;
+  let videoOptions = [], audioOptions = [], defaultAudio = 'mp3-320';
+  const HINTS = {
+    'wav-16': 'Uncompressed - roughly 10 MB per minute. Best for editing.',
+    'wav-24': 'Uncompressed - roughly 15 MB per minute. Note: YouTube audio is lossy; 24-bit adds headroom for editing, not detail.',
+    'best': 'Keeps the original stream (usually .opus or .m4a) - smallest file, no quality loss.',
+  };
+  const prefs = { get: k => localStorage.getItem('ytdl.' + k), set: (k, v) => localStorage.setItem('ytdl.' + k, v) };
+
+  // Fill a Quality <select> for the chosen type, restoring the last used value.
+  function fillQuality(sel, type, prefKey) {
+    const opts = type === 'audio' ? audioOptions : videoOptions;
+    sel.innerHTML = opts.map(o => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
+    const remembered = prefs.get(prefKey + '.' + type);
+    sel.value = opts.some(o => o.value === remembered) ? remembered : (type === 'audio' ? defaultAudio : opts[0].value);
+    updateHint(sel, type);
+  }
+  function updateHint(sel, type) {
+    const hintEl = sel.id === 'quality' ? $('qualityHint') : null;
+    if (hintEl) hintEl.textContent = type === 'audio' ? (HINTS[sel.value] || '') : '';
+  }
+  function typeOf(name) { return document.querySelector(`input[name=${name}]:checked`).value; }
+  function selection(name, sel) {
+    // Returns {quality, audio} for the API from a type radio group + its select.
+    const type = typeOf(name);
+    return type === 'audio' ? { quality: 'best', audio: sel.value } : { quality: sel.value, audio: '' };
+  }
 
   // ---- state polling -------------------------------------------------------
   async function refresh() {
@@ -250,11 +292,15 @@
       }
       if (!editingFolder) $('outdir').textContent = s.output_dir;
       currentFolder = s.output_dir;
-      if (!qualitiesLoaded) {
-        for (const sel of [$('quality'), $('bulkQuality')]) {
-          sel.innerHTML = s.qualities.map(q => `<option value="${q.value}">${esc(q.label)}</option>`).join('');
+      $('dataDir').textContent = s.data_dir || '';
+      if (!optionsLoaded) {
+        videoOptions = s.qualities; audioOptions = s.audio_formats; defaultAudio = s.default_audio || defaultAudio;
+        for (const [name, sel, key] of [['type', $('quality'), 'single'], ['bulkType', $('bulkQuality'), 'bulk']]) {
+          const t = prefs.get(key + '.type') || 'video';
+          document.querySelector(`input[name=${name}][value=${t}]`).checked = true;
+          fillQuality(sel, t, key);
         }
-        qualitiesLoaded = true;
+        optionsLoaded = true;
       }
       renderJobs(st.jobs);
     } catch (e) { /* server restarting; try again next tick */ }
@@ -484,11 +530,12 @@
     if (!info) return;
     try {
       const noplaylist = info.mixed_url && document.querySelector('input[name=mixed]:checked').value === 'video';
-      const body = { url: info.url, kind: info.kind, title: info.title, quality: $('quality').value,
-                     audio: $('audio').checked, noplaylist, items: info.kind === 'playlist' ? scopeItems() : '',
+      const body = Object.assign({ url: info.url, kind: info.kind, title: info.title,
+                     noplaylist, items: info.kind === 'playlist' ? scopeItems() : '',
                      total: info.count,
                      start: (info.kind === 'video' && $('clip').checked) ? $('clipStart').value : '',
-                     end: (info.kind === 'video' && $('clip').checked) ? $('clipEnd').value : '' };
+                     end: (info.kind === 'video' && $('clip').checked) ? $('clipEnd').value : '' },
+                     selection('type', $('quality')));
       if (info.kind === 'video' && $('clip').checked && !body.start && !body.end) throw new Error('Enter a clip start and/or end time.');
       await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
       $('addMsg').textContent = 'Added to queue.';
@@ -501,7 +548,7 @@
     const urls = $('bulk').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (!urls.length) return;
     try {
-      const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify({ urls, quality: $('bulkQuality').value, audio: $('bulkAudio').checked }) });
+      const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify(Object.assign({ urls }, selection('bulkType', $('bulkQuality')))) });
       $('bulkMsg').textContent = `Added ${r.added.length}.` + (r.skipped.length ? ` Skipped ${r.skipped.length} non-YouTube link(s).` : '');
       $('bulk').value = r.skipped.join('\n');
       refresh();
@@ -515,7 +562,10 @@
   document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', updateScope));
   $('pickAll').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = true);
   $('pickNone').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = false);
-  $('audio').onchange = () => $('quality').disabled = $('audio').checked;
+  document.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', () => {
+    prefs.set('single.type', r.value); fillQuality($('quality'), r.value, 'single');
+  }));
+  $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
 
   // Download folder: click the path to edit, Browse opens the OS picker (same machine).
@@ -536,7 +586,10 @@
     catch (err) { alert(err.message); }
     finally { $('btnBrowse').disabled = false; }
   };
-  $('bulkAudio').onchange = () => $('bulkQuality').disabled = $('bulkAudio').checked;
+  document.querySelectorAll('input[name=bulkType]').forEach(r => r.addEventListener('change', () => {
+    prefs.set('bulk.type', r.value); fillQuality($('bulkQuality'), r.value, 'bulk');
+  }));
+  $('bulkQuality').addEventListener('change', () => prefs.set('bulk.' + typeOf('bulkType'), $('bulkQuality').value));
   $('btnAdd').onclick = addJob;
   $('btnBulk').onclick = addBulk;
   $('btnClear').onclick = async () => {

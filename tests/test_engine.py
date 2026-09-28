@@ -112,3 +112,32 @@ def test_format_timestamp_is_filename_safe():
     assert format_timestamp(90) == "01.30"
     assert format_timestamp(3723) == "1.02.03"
     assert ":" not in format_timestamp(3723)
+
+
+from yt_engine import AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio, user_data_dir  # noqa: E402
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (None, None), (False, None), ("", None),
+    (True, DEFAULT_AUDIO), ("mp3", DEFAULT_AUDIO), ("audio", DEFAULT_AUDIO),
+    ("wav", "wav-16"), ("WAV-24", "wav-24"), ("mp3-128", "mp3-128"), ("best", "best"),
+    ("flac", None), ("mp3-999", None),
+])
+def test_normalize_audio(raw, expected):
+    assert normalize_audio(raw) == expected
+
+
+def test_audio_formats_are_well_formed():
+    for code, (label, codec, quality, extra, tag) in AUDIO_FORMATS.items():
+        assert label and isinstance(extra, list)
+        if codec == "wav":
+            assert "-c:a" in extra and quality is None
+        if codec == "mp3":
+            assert quality and quality.isdigit()
+    assert DEFAULT_AUDIO in AUDIO_FORMATS
+
+
+def test_user_data_dir_is_per_user_and_exists():
+    d = user_data_dir("YouTubeDownloaderTest")
+    assert d.is_dir() and str(Path.home()) in str(d)
+    d.rmdir()

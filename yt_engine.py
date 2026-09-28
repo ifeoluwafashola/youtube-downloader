@@ -51,6 +51,42 @@ QUALITY_LABELS = {
 # Menu shortcuts accepted by normalize_quality(); "0" is best.
 QUALITY_MENU = {"0": "best", "1": "2160", "2": "1440", "3": "1080", "4": "720", "5": "480"}
 
+# Audio-only output formats: code -> (label, yt-dlp preferredcodec, quality, extra ffmpeg args, file tag)
+# quality is kbps for MP3; for WAV it is the bit depth, applied via the ffmpeg codec.
+AUDIO_FORMATS = {
+    "mp3-320": ("MP3 - 320 kbps", "mp3", "320", [], "320k"),
+    "mp3-192": ("MP3 - 192 kbps", "mp3", "192", [], "192k"),
+    "mp3-128": ("MP3 - 128 kbps", "mp3", "128", [], "128k"),
+    "wav-16":  ("WAV - 16-bit",   "wav", None, ["-c:a", "pcm_s16le"], "16-bit"),
+    "wav-24":  ("WAV - 24-bit",   "wav", None, ["-c:a", "pcm_s24le"], "24-bit"),
+    # "best" = keep the original stream (no re-encode); yt-dlp only moves it into
+    # its native container (.opus / .m4a) so tags and cover art can be embedded.
+    "best":    ("Original audio (no re-encoding)", "best", None, [], ""),
+}
+DEFAULT_AUDIO = "mp3-320"
+# Containers yt-dlp can embed a thumbnail into. WAV is not one of them.
+THUMBNAIL_EXTS = {"mp3", "m4a", "mp4", "mkv", "mka", "ogg", "opus", "flac"}
+
+
+def normalize_audio(value) -> Optional[str]:
+    """
+    Turn an audio selection into a code from AUDIO_FORMATS, or None for "not audio".
+    Accepts True (legacy: means the default), "mp3" (default MP3), or a code.
+    """
+    if value is None or value is False or value == "":
+        return None
+    if value is True:
+        return DEFAULT_AUDIO
+    text = str(value).strip().lower()
+    if text in AUDIO_FORMATS:
+        return text
+    if text in ("mp3", "audio", "true"):
+        return DEFAULT_AUDIO
+    if text == "wav":
+        return "wav-16"
+    return None
+
+
 # Extensions that count as a finished download when checking for name
 # collisions. Intermediate files (.part, .ytdl, .f137.mp4, .webp) do not.
 FINAL_EXTS = {"mp4", "mkv", "webm", "mov", "m4a", "mp3", "opus", "ogg", "flac", "wav", "aac"}
@@ -338,6 +374,37 @@ def ytdlp_version() -> str:
     return yt_dlp.version.__version__
 
 
+def user_data_dir(app_name: str = "YouTubeDownloader") -> Path:
+    """
+    Per-user folder for state that must outlive the program folder
+    (history, settings): %LOCALAPPDATA% on Windows, ~/Library/Application Support
+    on macOS, $XDG_DATA_HOME or ~/.local/share elsewhere. Created if missing.
+    """
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    folder = base / app_name
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def user_downloads_dir() -> Path:
+    """The user's Downloads folder (honours a redirected folder on Windows), else ~/Downloads."""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders") as key:
+                value, _ = winreg.QueryValueEx(key, "{374DE290-123F-4565-9164-39C4925E467B}")
+            return Path(os.path.expandvars(value))
+        except OSError:
+            pass
+    return Path.home() / "Downloads"
+
+
 def update_ytdlp() -> tuple[bool, str]:
     """
     Upgrade yt-dlp in the current interpreter's environment.
@@ -384,7 +451,6 @@ class Settings:
     cookies_from_browser: Optional[str] = None   # e.g. "chrome", "firefox", "edge"
     cookies_file: Optional[Path] = None          # path to a Netscape cookies.txt
     use_ffmpeg: bool = True                      # user preference; see .ffmpeg
-    audio_bitrate: str = "192"                   # kbps for MP3 extraction
 
     def __post_init__(self):
         self.output_dir = Path(self.output_dir).expanduser()
@@ -566,18 +632,28 @@ class Downloader:
         opts["postprocessor_hooks"] = [self._pp_hook]
         return opts
 
-    def _format_opts(self, quality: str, audio: bool) -> dict:
+    def _format_opts(self, quality: str, audio: Optional[str]) -> dict:
         ffmpeg = self.settings.ffmpeg
         if audio:
+            _label, codec, aq, extra_args, _tag = AUDIO_FORMATS[audio]
             opts = {"format": "bestaudio/best"}
-            if ffmpeg:
+            if not ffmpeg:
+                return opts                      # raw stream, whatever container YouTube serves
+            pps = []
+            if codec:
+                pp = {"key": "FFmpegExtractAudio", "preferredcodec": codec, "nopostoverwrites": False}
+                if aq:
+                    pp["preferredquality"] = aq
+                pps.append(pp)
+                if extra_args:
+                    # Appended after yt-dlp's own codec options, so they win (e.g. 24-bit PCM).
+                    opts["postprocessor_args"] = {"extractaudio": list(extra_args)}
+            pps.append({"key": "FFmpegMetadata"})
+            out_ext = None if codec == "best" else codec   # None: .opus or .m4a, decided at runtime
+            if out_ext is None or out_ext in THUMBNAIL_EXTS:
                 opts["writethumbnail"] = True
-                opts["postprocessors"] = [
-                    {"key": "FFmpegExtractAudio", "preferredcodec": "mp3",
-                     "preferredquality": self.settings.audio_bitrate},
-                    {"key": "FFmpegMetadata"},
-                    {"key": "EmbedThumbnail"},
-                ]
+                pps.append({"key": "EmbedThumbnail", "already_have_thumbnail": False})
+            opts["postprocessors"] = pps
             return opts
 
         cap = "" if quality == "best" else f"[height<={quality}]"
@@ -715,14 +791,16 @@ class Downloader:
         return "\n".join(lines)
 
     def download(self, url: str, *, kind: Optional[str] = None, quality: str = "best",
-                 audio: bool = False, items: str = "", noplaylist: bool = False,
+                 audio=None, items: str = "", noplaylist: bool = False,
                  title: str = "", start: Optional[float] = None, end: Optional[float] = None,
                  force: bool = False) -> Result:
         """
         Download a video or playlist and append a line to the run log.
 
         kind: "video" or "playlist"; inspected automatically if None.
-        quality: one of QUALITIES (ignored when audio=True).
+        quality: one of QUALITIES (ignored for audio).
+        audio: None/False for video, or an AUDIO_FORMATS code such as "mp3-320",
+               "wav-24", "best" (True means the default MP3).
         items: yt-dlp playlist_items string, "" for all (playlists only).
         noplaylist: for watch?v=..&list=.. URLs, download just the video.
         start/end: clip boundaries in seconds (single videos; needs FFmpeg).
@@ -730,6 +808,9 @@ class Downloader:
                deleted are fetched again (files still present are skipped).
         """
         quality = normalize_quality(quality) or "best"
+        if audio is not None and audio is not False and normalize_audio(audio) is None:
+            return Result(STATUS_FAILED, detail=f"Unknown audio format: {audio}")
+        audio = normalize_audio(audio)
         if (start is not None or end is not None) and not self.settings.ffmpeg:
             return Result(STATUS_FAILED, detail="Clip download requires FFmpeg.")
         with self._lock:
@@ -796,6 +877,8 @@ class Downloader:
         tags = []
         if not audio:
             tags.append(f"{info['height']}p" if info.get("height") else f"{quality}p")
+        elif AUDIO_FORMATS[audio][4] and self.settings.ffmpeg:
+            tags.append(AUDIO_FORMATS[audio][4])
         if clip_tag:
             tags.append(clip_tag)
         stem = unique_stem(out, f"{safe_title} [{' '.join(tags)}]" if tags else safe_title)
@@ -811,7 +894,7 @@ class Downloader:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
         opts.update(self._format_opts(quality, audio))
-        mode = "audio" if audio else "video"
+        mode = audio if audio else "video"     # e.g. archive_mp3-320.txt, archive_wav-24.txt, archive_video.txt
         opts.update({
             "outtmpl": {
                 "default": str(out / "%(playlist_title)s" / "%(playlist_index)s - %(title)s.%(ext)s"),

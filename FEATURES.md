@@ -35,7 +35,7 @@ Tracks features, their implementation status, and notes.
 | 1 | Merged best-video + best-audio via FFmpeg (true 4K) | ✅ | Falls back to closest available resolution if nothing fits under the cap |
 | 2 | Quality selection: best / 2160 / 1440 / 1080 / 720 / 480 | ✅ | Accepts menu numbers 0–5, `1080`, `1080p`, or `best` |
 | 3 | "Best available" quality mode | ✅ | Default everywhere; `--quality best` on CLI |
-| 4 | Audio-only download (MP3, 192 kbps) | ✅ | Requires FFmpeg (now auto-provided) |
+| 4 | Audio-only download | ✅ | MP3 at 320 / 192 / 128 kbps, WAV 16-bit / 24-bit (PCM), or the original stream with no re-encoding (.opus/.m4a). Cover art and tags embedded where the container allows (not WAV). Separate playlist archive per format. Files tagged `[320k]`, `[24-bit]` |
 | 5 | Thumbnail embedding | ✅ | mutagen preferred, FFmpeg fallback |
 | 6 | Metadata embedding | ✅ | FFmpegMetadata postprocessor |
 | 7 | Collision-safe filenames — `title [1080p] (1).mp4` | ✅ | Resolution tag is the *actual* downloaded height, not the cap. Only finished files count as collisions; `.part` / `.fNNN` intermediates are ignored so interrupted downloads resume instead of being renamed |
@@ -101,9 +101,9 @@ Tracks features, their implementation status, and notes.
 | 40 | FFmpeg missing banner with plain-language fix | ✅ | |
 | 41 | Windows `Start.bat` launcher | ✅ | Creates `.venv`, installs only when `requirements.txt` changed, launches console |
 | 42 | macOS `.command` launcher | 🔲 | |
-| 43 | Queue history across restarts | ✅ | `history.json` (last 500 jobs, incl. logs). Jobs that were running when the console closed show as INTERRUPTED. Files are re-checked every 10 s; deleted ones are struck through and the job gets a "Download again" button |
+| 43 | Queue history across restarts | ✅ | `history.json` in the user profile (`%LOCALAPPDATA%\YouTubeDownloader` on Windows), so it survives deleting or re-downloading the program folder; older copies next to the scripts are migrated automatically. Last 500 jobs incl. logs. Jobs that were running when the console closed show as INTERRUPTED. Files are re-checked every 10 s; deleted ones are struck through and the job gets a "Download again" button |
 | 43a | Download again | ✅ | Re-queues with the same URL and options and `force=True`: playlist archive ignored, but files still on disk are skipped, so only what is missing is fetched |
-| 44 | Choose output folder from the page | ✅ | Click the folder path in the header; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` and used on the next start unless `--output` is given. Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |
+| 44 | Choose output folder from the page | ✅ | Click the folder path in the header; "Browse…" opens the OS folder picker (tkinter, same machine), or type a path. Saved in `settings.json` in the user profile and used on the next start unless `--output` is given. Default for new installs is `<Downloads>\YouTube Downloader` (an existing `downloads\` next to the scripts keeps being used). Each job remembers the folder it used, so Play/Open/Show in folder keep working after a change |
 | 45 | Batch import from .xlsx / .txt | ❌ | Superseded by bulk paste (#34) |
 | 46 | Standalone executable (PyInstaller) | 🔲 | |
 
@@ -111,7 +111,7 @@ Tracks features, their implementation status, and notes.
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 47 | argparse CLI | ✅ | `--url --quality --audio --output --items --no-playlist --no-ffmpeg --cookies-from-browser --cookies-file --list-formats --update --version` |
+| 47 | argparse CLI | ✅ | `--url --quality --audio [FORMAT] --output --items --no-playlist --no-ffmpeg --cookies-from-browser --cookies-file --list-formats --update --version` |
 | 48 | Exit codes | ✅ | 0 success/skipped, 1 failure, 2 bad arguments, 130 interrupted |
 | 49 | Interactive mode honours `--output` and cookie flags | ✅ | Previously hard-coded `./downloads` |
 | 50 | `--start` / `--end` clip flags | 🔲 | Engine supports it (`download(start=, end=)`); CLI flags not wired yet |
@@ -129,7 +129,7 @@ Tracks features, their implementation status, and notes.
 |---|------|--------|-------|
 | 53 | Engine / UI separation | ✅ | `yt_engine.Downloader` takes `on_message` / `on_progress` callbacks; `Settings` dataclass replaces module globals |
 | 54 | One download path instead of four near-duplicate functions | ✅ | `_format_opts()` + `_download_video()` / `_download_playlist()` |
-| 55 | Unit tests | ✅ | 44 tests over the pure functions; network paths tested manually |
+| 55 | Unit tests | ✅ | 58 tests over the pure functions; network paths tested manually |
 | 56 | Legacy scripts retired | ✅ | Moved to `legacy/`; not maintained |
 
 ---
