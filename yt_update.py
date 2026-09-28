@@ -152,8 +152,8 @@ def check_for_update() -> UpdateInfo:
 # ---------------------------------------------------------------------------
 
 def _update_git(say: Callable[[str], None]) -> UpdateResult:
-    dirty = _run(["git", "status", "--porcelain", "--untracked-files=no"]).stdout.strip()
-    if dirty:
+    dirty = _run(["git", "status", "--porcelain", "--untracked-files=no"]).stdout
+    if dirty.strip():
         # Files that differ only in CRLF/LF (e.g. after a .gitattributes change)
         # are not real edits: reset them so the pull can proceed.
         real = _run(["git", "diff", "--quiet", "--ignore-cr-at-eol", "HEAD", "--"]).returncode != 0
@@ -161,8 +161,9 @@ def _update_git(say: Callable[[str], None]) -> UpdateResult:
             return UpdateResult(False, False,
                                 "Local files have been modified; refusing to overwrite them.\n"
                                 "Run  git stash  (or discard the changes) and try again.",
-                                output=dirty)
-        files = [line[3:] for line in dirty.splitlines()]
+                                output=dirty.strip())
+        # Porcelain format: two status columns, a space, then the path.
+        files = [line[3:] for line in dirty.splitlines() if len(line) > 3]
         say(f"Resetting line endings on: {', '.join(files)}")
         _run(["git", "checkout", "--", *files])
     before = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
