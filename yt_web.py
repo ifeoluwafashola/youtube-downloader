@@ -40,6 +40,7 @@ from yt_engine import (
     QUALITIES, QUALITY_LABELS,
     Downloader, EngineError, Progress, Settings,
     AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio, user_data_dir, user_downloads_dir,
+    CONTAINERS, DEFAULT_CONTAINER, normalize_container,
     ensure_ffmpeg, is_youtube_url, normalize_quality, parse_selection, parse_timestamp,
     update_ytdlp, ytdlp_version,
 )
@@ -96,6 +97,7 @@ class Job:
     start: Optional[float] = None    # clip boundaries in seconds (single videos)
     end: Optional[float] = None
     force: bool = False              # re-download: ignore the playlist archive
+    container: str = DEFAULT_CONTAINER   # mp4 | mkv (video only)
     kind: Optional[str] = None       # filled by inspect if not supplied
     title: str = ""
     output_dir: str = ""             # folder in effect when the job ran
@@ -114,7 +116,7 @@ class Job:
 
     # -- persistence ------------------------------------------------------------
 
-    PERSISTED = ("id", "url", "quality", "audio", "items", "noplaylist", "start", "end", "force",
+    PERSISTED = ("id", "url", "quality", "audio", "items", "noplaylist", "start", "end", "force", "container",
                  "kind", "title", "output_dir", "status", "detail", "completed", "files",
                  "total_size", "added", "finished")
 
@@ -128,6 +130,7 @@ class Job:
         job = cls(**{k: d.get(k, getattr(cls, k, None)) for k in cls.PERSISTED if k in d or k == "id" or k == "url"})
         job.log = deque(d.get("log") or [], maxlen=300)
         job.files = job.files or []
+        job.container = normalize_container(job.container) or DEFAULT_CONTAINER
         job.audio = normalize_audio(job.audio) or ""      # older records stored a bool
         if job.status in (INSPECTING, DOWNLOADING):
             job.status = INTERRUPTED
@@ -177,7 +180,8 @@ class Job:
         d["log_lines"] = len(self.log)
         d["total_size_text"] = human_size(self.total_size) if self.total_size else ""
         d["quality_label"] = (AUDIO_FORMATS[self.audio][0] if self.audio in AUDIO_FORMATS
-                              else QUALITY_LABELS.get(self.quality, self.quality))
+                              else QUALITY_LABELS.get(self.quality, self.quality)
+                              + (f" · {self.container.upper()}" if self.container != DEFAULT_CONTAINER else ""))
         d["clip_label"] = clip_label(self.start, self.end)
         d["missing_files"] = self.missing_files
         # A finished job can be fetched again when it failed, was cut short, or lost files.
@@ -303,7 +307,7 @@ class QueueWorker:
             return None
         return self.add(url=src.url, quality=src.quality, audio=src.audio, items=src.items,
                         noplaylist=src.noplaylist, start=src.start, end=src.end,
-                        kind=src.kind, title=src.title, force=True)
+                        container=src.container, kind=src.kind, title=src.title, force=True)
 
     def clear_finished(self) -> int:
         with self._lock:
@@ -384,7 +388,7 @@ class QueueWorker:
                 result = self.downloader.download(
                     job.url, kind=job.kind, title=job.title, quality=job.quality,
                     audio=job.audio or None, items=job.items, noplaylist=job.noplaylist,
-                    start=job.start, end=job.end, force=job.force)
+                    start=job.start, end=job.end, force=job.force, container=job.container)
                 job.status, job.detail, job.completed = result.status, result.detail, result.completed
                 job.set_files(result.files)
             except _Cancelled:
@@ -469,6 +473,8 @@ def api_state():
             "data_dir": str(DATA_DIR),
             "audio_formats": [{"value": k, "label": v[0]} for k, v in AUDIO_FORMATS.items()],
             "default_audio": DEFAULT_AUDIO,
+            "containers": [{"value": k, "label": v} for k, v in CONTAINERS.items()],
+            "default_container": DEFAULT_CONTAINER,
             "ffmpeg": s.ffmpeg,
             "ffmpeg_source": ff.source,
             "ffmpeg_version": ff.version,
@@ -511,6 +517,9 @@ def api_add_jobs():
     quality = normalize_quality(data.get("quality", "best"))
     if quality is None:
         return _bad("Invalid quality.")
+    container = normalize_container(data.get("container"))
+    if container is None:
+        return _bad("Unknown container; use mp4 or mkv.")
     audio = ""
     if data.get("audio"):
         audio = normalize_audio(data.get("audio")) or ""
@@ -546,7 +555,7 @@ def api_add_jobs():
             skipped.append(url)
             continue
         job = worker.add(
-            url=url, quality=quality, audio=audio, items=items,
+            url=url, quality=quality, audio=audio, items=items, container=container,
             noplaylist=bool(data.get("noplaylist")), start=start, end=end,
             kind=data.get("kind") if len(urls) == 1 else None,
             title=(data.get("title") or "") if len(urls) == 1 else "",

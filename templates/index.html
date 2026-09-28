@@ -140,6 +140,7 @@
           <label><input type="radio" name="type" value="audio"><span>Audio only</span></label>
         </span>
         <label>Quality <select id="quality"></select></label>
+        <label id="containerBox">Format <select id="container"></select></label>
         <span class="hint" id="qualityHint"></span>
         <label id="clipBox" class="hidden" title="Download only part of the video. Times as mm:ss or h:mm:ss. Leave one side empty for start/end of video.">
           <input type="checkbox" id="clip"> Clip
@@ -185,6 +186,7 @@
           <label><input type="radio" name="bulkType" value="audio"><span>Audio only</span></label>
         </span>
         <label>Quality <select id="bulkQuality"></select></label>
+        <label id="bulkContainerBox">Format <select id="bulkContainer"></select></label>
         <button id="btnBulk" class="primary">Add all to queue</button>
         <span id="bulkMsg" class="muted"></span>
       </div>
@@ -245,11 +247,12 @@
   let updateDone = false;   // hide the banner after a successful in-page update
   let editingFolder = false, currentFolder = '';
   let optionsLoaded = false;
-  let videoOptions = [], audioOptions = [], defaultAudio = 'mp3-320';
+  let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
   const HINTS = {
     'wav-16': 'Uncompressed - roughly 10 MB per minute. Best for editing.',
     'wav-24': 'Uncompressed - roughly 15 MB per minute. Note: YouTube audio is lossy; 24-bit adds headroom for editing, not detail.',
     'best': 'Keeps the original stream (usually .opus or .m4a) - smallest file, no quality loss.',
+    'mkv': 'MKV will not play in the in-page player - use Open. Best choice for 4K, VP9 or AV1 streams.',
   };
   const prefs = { get: k => localStorage.getItem('ytdl.' + k), set: (k, v) => localStorage.setItem('ytdl.' + k, v) };
 
@@ -263,13 +266,24 @@
   }
   function updateHint(sel, type) {
     const hintEl = sel.id === 'quality' ? $('qualityHint') : null;
-    if (hintEl) hintEl.textContent = type === 'audio' ? (HINTS[sel.value] || '') : '';
+    if (!hintEl) return;
+    hintEl.textContent = type === 'audio' ? (HINTS[sel.value] || '') : (HINTS[$('container').value] || '');
+  }
+  // Container applies to video only; fill it once and remember the last choice.
+  function fillContainer(sel, prefKey) {
+    sel.innerHTML = containerOptions.map(o => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
+    const remembered = prefs.get(prefKey + '.container');
+    sel.value = containerOptions.some(o => o.value === remembered) ? remembered : defaultContainer;
+  }
+  function showContainer(type) {
+    show($('containerBox'), type === 'video');
   }
   function typeOf(name) { return document.querySelector(`input[name=${name}]:checked`).value; }
-  function selection(name, sel) {
-    // Returns {quality, audio} for the API from a type radio group + its select.
+  function selection(name, sel, containerSel) {
+    // Returns {quality, audio, container} for the API from a type radio group + its selects.
     const type = typeOf(name);
-    return type === 'audio' ? { quality: 'best', audio: sel.value } : { quality: sel.value, audio: '' };
+    return type === 'audio' ? { quality: 'best', audio: sel.value, container: defaultContainer }
+                            : { quality: sel.value, audio: '', container: containerSel.value };
   }
 
   // ---- state polling -------------------------------------------------------
@@ -295,11 +309,14 @@
       $('dataDir').textContent = s.data_dir || '';
       if (!optionsLoaded) {
         videoOptions = s.qualities; audioOptions = s.audio_formats; defaultAudio = s.default_audio || defaultAudio;
+        containerOptions = s.containers || []; defaultContainer = s.default_container || defaultContainer;
+        fillContainer($('container'), 'single'); fillContainer($('bulkContainer'), 'bulk');
         for (const [name, sel, key] of [['type', $('quality'), 'single'], ['bulkType', $('bulkQuality'), 'bulk']]) {
           const t = prefs.get(key + '.type') || 'video';
           document.querySelector(`input[name=${name}][value=${t}]`).checked = true;
           fillQuality(sel, t, key);
         }
+        showContainer(typeOf('type')); show($('bulkContainerBox'), typeOf('bulkType') === 'video');
         optionsLoaded = true;
       }
       renderJobs(st.jobs);
@@ -554,7 +571,7 @@
                      total: info.count,
                      start: (info.kind === 'video' && $('clip').checked) ? $('clipStart').value : '',
                      end: (info.kind === 'video' && $('clip').checked) ? $('clipEnd').value : '' },
-                     selection('type', $('quality')));
+                     selection('type', $('quality'), $('container')));
       if (info.kind === 'video' && $('clip').checked && !body.start && !body.end) throw new Error('Enter a clip start and/or end time.');
       await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
       $('addMsg').textContent = 'Added to queue.';
@@ -567,7 +584,7 @@
     const urls = $('bulk').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (!urls.length) return;
     try {
-      const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify(Object.assign({ urls }, selection('bulkType', $('bulkQuality')))) });
+      const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify(Object.assign({ urls }, selection('bulkType', $('bulkQuality'), $('bulkContainer')))) });
       $('bulkMsg').textContent = `Added ${r.added.length}.` + (r.skipped.length ? ` Skipped ${r.skipped.length} non-YouTube link(s).` : '');
       $('bulk').value = r.skipped.join('\n');
       refresh();
@@ -582,8 +599,10 @@
   $('pickAll').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = true);
   $('pickNone').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = false);
   document.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', () => {
-    prefs.set('single.type', r.value); fillQuality($('quality'), r.value, 'single');
+    prefs.set('single.type', r.value); fillQuality($('quality'), r.value, 'single'); showContainer(r.value);
   }));
+  $('container').addEventListener('change', () => { prefs.set('single.container', $('container').value); updateHint($('quality'), typeOf('type')); });
+  $('bulkContainer').addEventListener('change', () => prefs.set('bulk.container', $('bulkContainer').value));
   $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
 
@@ -606,7 +625,7 @@
     finally { $('btnBrowse').disabled = false; }
   };
   document.querySelectorAll('input[name=bulkType]').forEach(r => r.addEventListener('change', () => {
-    prefs.set('bulk.type', r.value); fillQuality($('bulkQuality'), r.value, 'bulk');
+    prefs.set('bulk.type', r.value); fillQuality($('bulkQuality'), r.value, 'bulk'); show($('bulkContainerBox'), r.value === 'video');
   }));
   $('bulkQuality').addEventListener('change', () => prefs.set('bulk.' + typeOf('bulkType'), $('bulkQuality').value));
   $('btnAdd').onclick = addJob;

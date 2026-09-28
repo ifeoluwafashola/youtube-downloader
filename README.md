@@ -42,7 +42,9 @@ has none, FFmpeg). A browser tab opens at http://127.0.0.1:8765 automatically.
 
 - Paste a video or playlist link and click **Inspect**. You see the title,
   uploader, duration or the list of videos in the playlist.
-- Choose **Video** and a quality (Best / 4K / 1440p / 1080p / 720p / 480p), or
+- Choose **Video** and a quality (Best / 4K / 1440p / 1080p / 720p / 480p) and a
+  format (MP4 plays everywhere; MKV is the better fit for 4K/VP9/AV1 but does not
+  play in the in-page player), or
   **Audio only** and a format: MP3 at 320, 192 or 128 kbps, WAV at 16- or
   24-bit, or the original stream with no conversion. Your last choice is
   remembered.

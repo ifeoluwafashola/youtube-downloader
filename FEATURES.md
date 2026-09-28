@@ -34,6 +34,7 @@ Tracks features, their implementation status, and notes.
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 1 | Merged best-video + best-audio via FFmpeg (true 4K) | ✅ | Falls back to closest available resolution if nothing fits under the cap |
+| 1a | Container choice: MP4 or MKV | ✅ | "Format" dropdown for video (default MP4). MKV holds VP9/AV1 + Opus natively with cover art as an attachment; the in-page Play button is hidden for `.mkv` (browsers cannot play it) - use Open. CLI `--container mkv`. Remembered per form; re-download keeps it |
 | 2 | Quality selection: best / 2160 / 1440 / 1080 / 720 / 480 | ✅ | Accepts menu numbers 0–5, `1080`, `1080p`, or `best` |
 | 3 | "Best available" quality mode | ✅ | Default everywhere; `--quality best` on CLI |
 | 4 | Audio-only download | ✅ | MP3 at 320 / 192 / 128 kbps, WAV 16-bit / 24-bit (PCM), or the original stream with no re-encoding (.opus/.m4a). Cover art and tags embedded where the container allows (not WAV). Separate playlist archive per format. Files tagged `[320k]`, `[24-bit]` |
@@ -114,7 +115,7 @@ Tracks features, their implementation status, and notes.
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 47 | argparse CLI | ✅ | `--url --quality --audio [FORMAT] --output --items --no-playlist --no-ffmpeg --cookies-from-browser --cookies-file --list-formats --update --version` |
+| 47 | argparse CLI | ✅ | `--url --quality --audio [FORMAT] --container --output --items --no-playlist --no-ffmpeg --cookies-from-browser --cookies-file --list-formats --update --version` |
 | 48 | Exit codes | ✅ | 0 success/skipped, 1 failure, 2 bad arguments, 130 interrupted |
 | 49 | Interactive mode honours `--output` and cookie flags | ✅ | Previously hard-coded `./downloads` |
 | 50 | `--start` / `--end` clip flags | 🔲 | Engine supports it (`download(start=, end=)`); CLI flags not wired yet |
@@ -143,7 +144,7 @@ Tracks features, their implementation status, and notes.
 |-------|--------|-------|
 | yt-dlp breaks when YouTube changes its backend | ⚠️ Ongoing | Use the "Update downloader" button or `Update.bat`; `requirements.txt` pins `>=2026.8.19` |
 | "No supported JavaScript runtime" warning | ⚠️ External | Some formats may be missing without Deno; downloads still work. Installing Deno is optional |
-| 4K files are VP9/AV1 + Opus in an MP4 container | ⚠️ By design | Plays in VLC, Chrome, modern Windows; very old players may need codecs |
+| 4K files are VP9/AV1 + Opus in an MP4 container | ⚠️ By design | Plays in VLC, Chrome, modern Windows; very old players may need codecs. Choose Format: MKV if a player struggles |
 | First run needs internet for pip and the FFmpeg download | ⚠️ | Later runs work offline (apart from YouTube itself) |
 
 ---

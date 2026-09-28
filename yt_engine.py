@@ -64,6 +64,18 @@ AUDIO_FORMATS = {
     "best":    ("Original audio (no re-encoding)", "best", None, [], ""),
 }
 DEFAULT_AUDIO = "mp3-320"
+
+# Video containers. MP4 plays everywhere including the in-page player; MKV is the
+# native home for YouTube's VP9/AV1 + Opus streams and never needs a remux.
+CONTAINERS = {"mp4": "MP4 (plays everywhere)", "mkv": "MKV (best for 4K / VP9 / AV1)"}
+DEFAULT_CONTAINER = "mp4"
+
+
+def normalize_container(value) -> Optional[str]:
+    text = str(value or "").strip().lower()
+    if not text:
+        return DEFAULT_CONTAINER
+    return text if text in CONTAINERS else None
 # Containers yt-dlp can embed a thumbnail into. WAV is not one of them.
 THUMBNAIL_EXTS = {"mp3", "m4a", "mp4", "mkv", "mka", "ogg", "opus", "flac"}
 
@@ -632,7 +644,7 @@ class Downloader:
         opts["postprocessor_hooks"] = [self._pp_hook]
         return opts
 
-    def _format_opts(self, quality: str, audio: Optional[str]) -> dict:
+    def _format_opts(self, quality: str, audio: Optional[str], container: str = DEFAULT_CONTAINER) -> dict:
         ffmpeg = self.settings.ffmpeg
         if audio:
             _label, codec, aq, extra_args, _tag = AUDIO_FORMATS[audio]
@@ -663,7 +675,7 @@ class Downloader:
             fmt = f"bestvideo{cap}+bestaudio/best{cap}/worstvideo+bestaudio/worst"
             return {
                 "format": fmt,
-                "merge_output_format": "mp4",
+                "merge_output_format": container,
                 "writethumbnail": True,
                 "postprocessors": [{"key": "FFmpegMetadata"}, {"key": "EmbedThumbnail"}],
             }
@@ -793,7 +805,7 @@ class Downloader:
     def download(self, url: str, *, kind: Optional[str] = None, quality: str = "best",
                  audio=None, items: str = "", noplaylist: bool = False,
                  title: str = "", start: Optional[float] = None, end: Optional[float] = None,
-                 force: bool = False) -> Result:
+                 force: bool = False, container: str = DEFAULT_CONTAINER) -> Result:
         """
         Download a video or playlist and append a line to the run log.
 
@@ -806,11 +818,15 @@ class Downloader:
         start/end: clip boundaries in seconds (single videos; needs FFmpeg).
         force: ignore the playlist download archive, so items whose files were
                deleted are fetched again (files still present are skipped).
+        container: "mp4" (default) or "mkv" for video downloads.
         """
         quality = normalize_quality(quality) or "best"
         if audio is not None and audio is not False and normalize_audio(audio) is None:
             return Result(STATUS_FAILED, detail=f"Unknown audio format: {audio}")
         audio = normalize_audio(audio)
+        container = normalize_container(container)
+        if container is None:
+            return Result(STATUS_FAILED, detail="Unknown container; use mp4 or mkv.")
         if (start is not None or end is not None) and not self.settings.ffmpeg:
             return Result(STATUS_FAILED, detail="Clip download requires FFmpeg.")
         with self._lock:
@@ -825,9 +841,9 @@ class Downloader:
                     kind, title = kind or info.kind, title or info.title
                 self._check_cancel()
                 if kind == "playlist":
-                    retcode = self._download_playlist(url, quality, audio, items, logger, force)
+                    retcode = self._download_playlist(url, quality, audio, items, logger, force, container)
                 else:
-                    retcode = self._download_video(url, quality, audio, logger, start, end)
+                    retcode = self._download_video(url, quality, audio, logger, start, end, container)
             except yt_dlp.utils.DownloadCancelled:
                 result = Result(STATUS_CANCELLED, detail="Cancelled by user",
                                 completed=len(self._completed), files=list(self._completed))
@@ -848,10 +864,11 @@ class Downloader:
 
     # -- download paths -------------------------------------------------------
 
-    def _download_video(self, url, quality, audio, logger, start=None, end=None) -> int:
+    def _download_video(self, url, quality, audio, logger, start=None, end=None,
+                        container=DEFAULT_CONTAINER) -> int:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
-        opts.update(self._format_opts(quality, audio))
+        opts.update(self._format_opts(quality, audio, container))
         opts["noplaylist"] = True
 
         clip_tag = ""
@@ -890,10 +907,11 @@ class Downloader:
             ydl.process_ie_result(ydl.sanitize_info(info, remove_private_keys=True), download=True)
         return 0
 
-    def _download_playlist(self, url, quality, audio, items, logger, force=False) -> int:
+    def _download_playlist(self, url, quality, audio, items, logger, force=False,
+                           container=DEFAULT_CONTAINER) -> int:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
-        opts.update(self._format_opts(quality, audio))
+        opts.update(self._format_opts(quality, audio, container))
         mode = audio if audio else "video"     # e.g. archive_mp3-320.txt, archive_wav-24.txt, archive_video.txt
         opts.update({
             "outtmpl": {

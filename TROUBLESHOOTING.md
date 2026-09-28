@@ -128,6 +128,12 @@ The number in brackets is the resolution that was **actually available**, not wh
 
 ---
 
+## The video plays with no sound / stutters in an old player
+
+High-resolution YouTube video uses the VP9 or AV1 codec with Opus audio. Inside an MP4 file some older players (old Windows Media Player, some TVs and phones) cannot handle that combination. Either play it with VLC, or download again choosing **Format: MKV**, which is the native container for those codecs. Note the in-page **Play** button cannot play MKV - use **Open**.
+
+---
+
 ## WAV files are huge / "24-bit" does not sound better
 
 WAV is uncompressed: about 10 MB per minute at 16-bit, 15 MB at 24-bit. YouTube's audio is itself compressed (Opus or AAC, ~128 kbps), so no WAV setting can recover detail that was never there. Choose WAV when a program you use needs it (editing, DAW import); 24-bit gives extra headroom for processing, not more detail. For listening, MP3 320 kbps or "Original audio" is the sensible choice.

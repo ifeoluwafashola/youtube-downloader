@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from yt_engine import (
-    AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio,
+    AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio, CONTAINERS, DEFAULT_CONTAINER,
     QUALITIES, QUALITY_LABELS, QUALITY_MENU,
     Downloader, EngineError, MediaInfo, Progress, Settings,
     ensure_ffmpeg, is_video_in_playlist_url, is_youtube_url,
@@ -241,6 +241,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                    help=f"Max resolution: {', '.join(QUALITIES)} (default best)")
     p.add_argument("--audio", nargs="?", const=DEFAULT_AUDIO, metavar="FORMAT",
                    help="Audio only. FORMAT: " + ", ".join(AUDIO_FORMATS) + f" (default {DEFAULT_AUDIO})")
+    p.add_argument("--container", default=DEFAULT_CONTAINER, choices=list(CONTAINERS),
+                   help=f"Video container (default {DEFAULT_CONTAINER})")
     p.add_argument("--output", default="./downloads", help="Output directory (default ./downloads)")
     p.add_argument("--items", default="",
                    help="Playlist selection, e.g. '5-20' or '1,3,7' (playlists only; default all)")
@@ -294,7 +296,8 @@ def run_noninteractive(args, settings: Settings) -> int:
     print(f"{info.kind}: {info.title}")
 
     result = dl.download(args.url, kind=info.kind, title=info.title, quality=quality,
-                         audio=audio, items=args.items, noplaylist=args.no_playlist)
+                         audio=audio, items=args.items, noplaylist=args.no_playlist,
+                         container=args.container)
     report(result)
     return 0 if result.ok or result.status == "SKIPPED" else 1
 
