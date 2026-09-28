@@ -35,14 +35,14 @@ try:
 except ImportError:  # pragma: no cover
     raise SystemExit("Flask is not installed. Run:  pip install -r requirements.txt")
 
-from yt_update import check_for_update, current_version, update_app
+from yt_update import check_all, current_version, update_all
 from yt_engine import (
     QUALITIES, QUALITY_LABELS,
     Downloader, EngineError, Progress, Settings,
     AUDIO_FORMATS, DEFAULT_AUDIO, normalize_audio, user_data_dir, user_downloads_dir,
     CONTAINERS, DEFAULT_CONTAINER, normalize_container,
     ensure_ffmpeg, is_youtube_url, normalize_quality, parse_selection, parse_timestamp,
-    update_ytdlp, ytdlp_version,
+    ytdlp_version,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -221,7 +221,7 @@ class QueueWorker:
 
     def _check_update(self):
         try:
-            self.update_info = check_for_update().to_dict()
+            self.update_info = check_all().to_dict()
         except Exception as e:  # never let the check disturb the app
             self.update_info = {"error": str(e), "available": False}
 
@@ -683,18 +683,15 @@ def api_clear_jobs():
 
 @app.post("/api/update")
 def api_update():
-    ok, output = update_ytdlp()
-    return jsonify({"ok": ok, "output": output[-4000:],
-                    "note": "Restart the console (close this window and run Start.bat) to load the new version."})
-
-
-@app.post("/api/update-app")
-def api_update_app():
-    """Pull the latest application code from GitHub. Files are swapped on disk; restart to load them."""
+    """
+    The one update: pull the latest program code from GitHub, then upgrade
+    yt-dlp. Files are swapped on disk; a restart loads them.
+    """
     lines: list[str] = []
-    result = update_app(lines.append)
+    result = update_all(lines.append)
     if result.ok:
-        worker.update_info = {"available": False, "local": current_version(), "remote": current_version()}
+        worker.update_info = {"available": False, "app": {"available": False, "local": current_version()},
+                              "ytdlp": {"available": False, "installed": result.ytdlp_after}}
     return jsonify({**result.to_dict(), "log": lines,
                     "note": "Close this window and run Start.bat again to load the new version."
                             if result.changed else ""})

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-yt_update.py - update this application from GitHub.
+yt_update.py - one-step update: this application (from GitHub) and yt-dlp (from PyPI).
 
-    python yt_update.py            update if a newer version exists
-    python yt_update.py --check    only report whether an update exists
+    python yt_update.py            update both if newer versions exist
+    python yt_update.py --check    only report what is available
 
-Two strategies, chosen automatically:
+There is deliberately a single "update" for the user. Two things move
+underneath it - the program code and the yt-dlp library that talks to
+YouTube - but the user never needs to know which one fixed their problem.
+
+Application update: two strategies, chosen automatically:
   * git   - the folder is a git clone and git is installed: fast-forward pull.
   * zip   - otherwise: download the repository zip from GitHub and copy the
             files over this folder. User data (.venv, downloads, bin, .git)
@@ -64,6 +68,65 @@ class UpdateResult:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+@dataclass
+class YtdlpInfo:
+    installed: str = ""
+    latest: str = ""
+    available: bool = False
+    error: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class CombinedInfo:
+    """Everything the startup check learns, for one banner."""
+    app: UpdateInfo
+    ytdlp: YtdlpInfo
+
+    @property
+    def available(self) -> bool:
+        return self.app.available or self.ytdlp.available
+
+    def to_dict(self) -> dict:
+        return {"available": self.available, "app": self.app.to_dict(), "ytdlp": self.ytdlp.to_dict()}
+
+
+@dataclass
+class CombinedResult:
+    app: UpdateResult
+    ytdlp_ok: bool = True
+    ytdlp_before: str = ""
+    ytdlp_after: str = ""
+    ytdlp_output: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.app.ok and self.ytdlp_ok
+
+    @property
+    def changed(self) -> bool:
+        return self.app.changed or (self.ytdlp_before != self.ytdlp_after and bool(self.ytdlp_after))
+
+    @property
+    def message(self) -> str:
+        parts = [self.app.message]
+        if not self.ytdlp_ok:
+            parts.append("yt-dlp upgrade failed.")
+        elif self.ytdlp_before != self.ytdlp_after and self.ytdlp_after:
+            parts.append(f"yt-dlp {self.ytdlp_before} -> {self.ytdlp_after}.")
+        else:
+            parts.append(f"yt-dlp {self.ytdlp_after or self.ytdlp_before} is current.")
+        return " ".join(parts)
+
+    def to_dict(self) -> dict:
+        return {"ok": self.ok, "changed": self.changed, "message": self.message,
+                "app": self.app.to_dict(),
+                "ytdlp": {"ok": self.ytdlp_ok, "before": self.ytdlp_before, "after": self.ytdlp_after,
+                          "output": self.ytdlp_output}}
 
 
 # ---------------------------------------------------------------------------
@@ -246,11 +309,74 @@ def update_app(on_message: Optional[Callable[[str], None]] = None) -> UpdateResu
         return UpdateResult(False, False, f"Update failed: {type(e).__name__}: {e}")
     if result.ok and result.requirements_changed:
         result.output = (result.output + "\n" + _reinstall_requirements(say)).strip()
-    if result.changed:
-        say(result.message)
-        say("Restart the console (close the window and run Start.bat) to use the new version.")
+    say(result.message)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# yt-dlp
+# ---------------------------------------------------------------------------
+
+def installed_ytdlp_version() -> str:
+    """Ask a fresh interpreter, so the answer is right even after an in-process upgrade."""
+    proc = subprocess.run([sys.executable, "-c", "import yt_dlp.version as v; print(v.__version__)"],
+                          capture_output=True, text=True, timeout=60)
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _version_key(text: str) -> tuple:
+    """'2026.08.19' and '2026.8.19' are the same release; compare numerically."""
+    parts = []
+    for piece in text.split("."):
+        digits = "".join(ch for ch in piece if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def check_ytdlp() -> YtdlpInfo:
+    info = YtdlpInfo(installed=installed_ytdlp_version())
+    try:
+        data = _http_json("https://pypi.org/pypi/yt-dlp/json")
+        info.latest = data["info"]["version"]
+        info.available = bool(info.installed) and _version_key(info.latest) > _version_key(info.installed)
+    except Exception as e:
+        info.error = f"{type(e).__name__}: {e}"
+    return info
+
+
+def update_ytdlp(say: Callable[[str], None]) -> tuple[bool, str, str, str]:
+    """Upgrade yt-dlp in this environment. Returns (ok, before, after, pip output)."""
+    before = installed_ytdlp_version()
+    say("Checking for a newer yt-dlp...")
+    proc = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "yt-dlp"],
+                          capture_output=True, text=True, timeout=600)
+    after = installed_ytdlp_version() if proc.returncode == 0 else before
+    output = (proc.stdout + "\n" + proc.stderr).strip()
+    if proc.returncode != 0:
+        say("yt-dlp upgrade failed - see details below.")
+    elif after != before:
+        say(f"yt-dlp updated {before} -> {after}.")
     else:
-        say(result.message)
+        say(f"yt-dlp {after} is already current.")
+    return proc.returncode == 0, before, after, output
+
+
+# ---------------------------------------------------------------------------
+# combined
+# ---------------------------------------------------------------------------
+
+def check_all() -> CombinedInfo:
+    return CombinedInfo(app=check_for_update(), ytdlp=check_ytdlp())
+
+
+def update_all(on_message: Optional[Callable[[str], None]] = None) -> CombinedResult:
+    """The one update. Program first (it may change requirements), then yt-dlp."""
+    say = on_message or (lambda _m: None)
+    app = update_app(say)
+    ok, before, after, output = update_ytdlp(say)
+    result = CombinedResult(app=app, ytdlp_ok=ok, ytdlp_before=before, ytdlp_after=after, ytdlp_output=output)
+    if result.changed:
+        say("Restart the console (close the window and run Start.bat) to use the new version.")
     return result
 
 
@@ -259,22 +385,31 @@ def update_app(on_message: Optional[Callable[[str], None]] = None) -> UpdateResu
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Update this application from GitHub.")
-    p.add_argument("--check", action="store_true", help="Only check whether an update is available")
+    p = argparse.ArgumentParser(description="Update this program and yt-dlp.")
+    p.add_argument("--check", action="store_true", help="Only report whether updates are available")
+    p.add_argument("--app-only", action="store_true", help="Update the program but not yt-dlp")
     args = p.parse_args()
 
     if args.check:
-        info = check_for_update()
-        if info.error:
-            print(f"Could not check for updates: {info.error}")
-            return 1
-        print(f"Installed: {info.local or 'unknown'}   Latest: {info.remote}   "
-              f"{'UPDATE AVAILABLE' if info.available else 'up to date'}   ({info.strategy})")
+        info = check_all()
+        a, y = info.app, info.ytdlp
+        print(f"Program : installed {a.local or 'unknown'}, latest {a.remote or '?'}  "
+              f"{'- UPDATE AVAILABLE' if a.available else '- up to date'}" + (f"  ({a.error})" if a.error else ""))
+        print(f"yt-dlp  : installed {y.installed or '?'}, latest {y.latest or '?'}  "
+              f"{'- UPDATE AVAILABLE' if y.available else '- up to date'}" + (f"  ({y.error})" if y.error else ""))
         return 0
 
-    result = update_app(print)
-    if result.output:
-        print(result.output)
+    if args.app_only:
+        result = update_app(print)
+        if result.output:
+            print(result.output)
+        return 0 if result.ok else 1
+
+    result = update_all(print)
+    if result.app.output:
+        print(result.app.output)
+    if not result.ytdlp_ok and result.ytdlp_output:
+        print(result.ytdlp_output)
     return 0 if result.ok else 1
 
 

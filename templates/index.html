@@ -95,14 +95,13 @@
     <button class="small" id="btnFolderCancel">Cancel</button>
   </span>
   <button id="btnOpen">Open folder</button>
-  <button id="btnUpdate" title="Upgrade yt-dlp, the part that talks to YouTube">Update downloader</button>
-  <button id="btnUpdateApp" title="Get the latest version of this program from GitHub">Update app</button>
+  <button id="btnUpdate" title="Get the latest version of this program and of yt-dlp (the part that talks to YouTube)">Update</button>
 </header>
 
 <main>
   <div id="updateBanner" class="card hidden" style="border-color:var(--accent); display:flex; gap:12px; align-items:center">
-    <span><b>A new version of this program is available</b> <span class="muted" id="updateVersions"></span></span>
-    <button class="primary small" id="btnUpdateAppBanner">Update now</button>
+    <span><b>An update is available</b> <span class="muted" id="updateVersions"></span></span>
+    <button class="primary small" id="btnUpdateBanner">Update now</button>
   </div>
 
   <div id="ffmpegWarn" class="card hidden" style="border-color:var(--bad)">
@@ -223,7 +222,7 @@
   </dialog>
 
   <div id="updateOut" class="card hidden">
-    <h2>Update downloader</h2>
+    <h2>Update</h2>
     <div id="updateMsg"></div>
     <pre id="updateText" class="out"></pre>
   </div>
@@ -295,7 +294,12 @@
       $('appver').textContent = s.app_version;
       const u = s.update;
       show($('updateBanner'), !!(u && u.available && !updateDone));
-      if (u && u.available) $('updateVersions').textContent = `(${u.local || 'unknown'} → ${u.remote})`;
+      if (u && u.available) {
+        const what = [];
+        if (u.app && u.app.available) what.push(`program ${u.app.local || 'unknown'} → ${u.app.remote}`);
+        if (u.ytdlp && u.ytdlp.available) what.push(`yt-dlp ${u.ytdlp.installed} → ${u.ytdlp.latest}`);
+        $('updateVersions').textContent = what.length ? `(${what.join(', ')})` : '';
+      }
       $('ffmpeg').textContent = s.ffmpeg ? `${s.ffmpeg_source} ${s.ffmpeg_version || ''}`.trim() : 'missing';
       $('ffmpeg').title = s.ffmpeg_detail || '';
       $('ffmpeg').style.color = s.ffmpeg ? '' : 'var(--bad)';
@@ -642,39 +646,26 @@
     el.textContent = r.lines.length ? r.lines.join('\n') : '(log is empty)';
     show(el, true);
   };
-  $('btnUpdate').onclick = async () => {
-    if (!confirm('Update yt-dlp now? Downloads in progress will continue; restart the console afterwards.')) return;
+  async function runUpdate() {
+    if (!confirm('Update now? This fetches the latest version of the program and of yt-dlp. Downloads in progress will continue; restart the console afterwards.')) return;
     show($('updateOut'), true);
-    $('updateOut').querySelector('h2').textContent = 'Update downloader';
     msg($('updateMsg'), 'Updating… this can take a minute.', 'note');
     $('updateText').textContent = '';
-    $('btnUpdate').disabled = true;
+    for (const b of [$('btnUpdate'), $('btnUpdateBanner')]) b.disabled = true;
     try {
       const r = await api('/api/update', { method: 'POST' });
-      msg($('updateMsg'), r.ok ? 'Update finished. ' + r.note : 'Update failed - see output below.', r.ok ? 'ok' : 'err');
-      $('updateText').textContent = r.output;
-    } catch (e) { msg($('updateMsg'), e.message, 'err'); }
-    finally { $('btnUpdate').disabled = false; }
-  };
-
-  async function updateApp() {
-    if (!confirm('Get the latest version of this program from GitHub? Downloads in progress will continue; you will need to restart the console afterwards.')) return;
-    show($('updateOut'), true);
-    $('updateOut').querySelector('h2').textContent = 'Update app';
-    msg($('updateMsg'), 'Updating…', 'note');
-    $('updateText').textContent = '';
-    for (const b of [$('btnUpdateApp'), $('btnUpdateAppBanner')]) b.disabled = true;
-    try {
-      const r = await api('/api/update-app', { method: 'POST' });
       if (r.ok && r.changed) { updateDone = true; msg($('updateMsg'), r.message + ' ' + r.note, 'ok'); }
       else if (r.ok) msg($('updateMsg'), r.message, 'ok');
       else msg($('updateMsg'), r.message, 'err');
-      $('updateText').textContent = [...(r.log || []), r.output || '', ...(r.files || []).map(f => '  ' + f)].filter(Boolean).join('\n');
+      const detail = [...(r.log || [])];
+      if (r.app && r.app.output) detail.push(r.app.output);
+      if (r.ytdlp && !r.ytdlp.ok && r.ytdlp.output) detail.push(r.ytdlp.output);
+      $('updateText').textContent = detail.filter(Boolean).join('\n');
     } catch (e) { msg($('updateMsg'), e.message, 'err'); }
-    finally { for (const b of [$('btnUpdateApp'), $('btnUpdateAppBanner')]) b.disabled = false; }
+    finally { for (const b of [$('btnUpdate'), $('btnUpdateBanner')]) b.disabled = false; }
   }
-  $('btnUpdateApp').onclick = updateApp;
-  $('btnUpdateAppBanner').onclick = updateApp;
+  $('btnUpdate').onclick = runUpdate;
+  $('btnUpdateBanner').onclick = runUpdate;
 
   refresh();
   setInterval(refresh, 1000);

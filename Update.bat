@@ -1,10 +1,14 @@
 @echo off
 setlocal
+title YouTube Downloader - update
 cd /d "%~dp0"
-echo Updating yt-dlp (the part that talks to YouTube)...
-echo To update the program itself, use UpdateApp.bat instead.
+set "PYTHONUTF8=1"
+
+echo Updating the YouTube Downloader...
+echo (this fetches the latest program version and the latest yt-dlp)
+echo.
 if exist ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" -m pip install --upgrade yt-dlp
+    ".venv\Scripts\python.exe" yt_update.py
 ) else (
     echo Run Start.bat once first to set things up.
 )
