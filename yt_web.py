@@ -170,8 +170,11 @@ class Job:
     # -- view -------------------------------------------------------------------
 
     def to_dict(self) -> dict:
+        """What the browser gets once a second for every job - so no log text here,
+        only its length; the page fetches the text on demand (see /api/jobs/<id>/log)."""
         d = asdict(self)
-        d["log"] = list(self.log)
+        d.pop("log", None)
+        d["log_lines"] = len(self.log)
         d["total_size_text"] = human_size(self.total_size) if self.total_size else ""
         d["quality_label"] = (AUDIO_FORMATS[self.audio][0] if self.audio in AUDIO_FORMATS
                               else QUALITY_LABELS.get(self.quality, self.quality))
@@ -562,6 +565,15 @@ def _job_file(job_id: int, index: int) -> Path:
     if root not in path.parents or not path.is_file():
         abort(404)
     return path
+
+
+@app.get("/api/jobs/<int:job_id>/log")
+def api_job_log(job_id: int):
+    """The yt-dlp output for one job. 'running' tells the page whether to keep polling it."""
+    job = worker.find(job_id)
+    if job is None:
+        abort(404)
+    return jsonify({"lines": list(job.log), "running": job.status in (INSPECTING, DOWNLOADING)})
 
 
 @app.get("/api/jobs/<int:job_id>/files/<int:index>")

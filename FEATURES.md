@@ -90,6 +90,7 @@ Tracks features, their implementation status, and notes.
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
 | 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time. Rows are patched in place (a cell is only re-rendered when it changes), so scroll position and text selection in a log survive refreshes |
 | 35a | Copy log button | ✅ | Copies the job's yt-dlp output to the clipboard; last 300 lines kept per job |
+| 35b | Logs loaded on demand | ✅ | The once-a-second list carries only a line count; the text comes from `GET /api/jobs/<id>/log` when a panel is opened, and is re-fetched each tick only while that panel is open and the job is running |
 | 36 | Remove queued job / clear history | ✅ | |
 | 36e | Cancel a running download | ✅ | Engine raises `DownloadCancelled` from its hooks; partial `.part` files stay so a retry resumes |
 | 36a | Finished files listed per job with size | ✅ | Total size shown in the status column; lists longer than 5 files collapse behind a summary |

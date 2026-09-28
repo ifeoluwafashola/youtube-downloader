@@ -332,7 +332,7 @@
         tr.id = id;
         tr.innerHTML = `<td data-cell="id">${j.id}</td>
           <td class="title" data-cell-title><div data-cell="title"></div><div data-cell="files"></div>
-            <details class="log hidden"><summary>log <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details></td>
+            <details class="log hidden"><summary>log <span class="logcount muted"></span> <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details></td>
           <td data-cell="kind"></td>
           <td data-cell="quality"></td>
           <td data-cell="status"></td>
@@ -376,17 +376,30 @@
       (j.can_redownload ? `<button class="small" data-redl="${j.id}" title="Queue this again with the same settings">Download again</button>` : '') +
       (anyFile ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''));
 
-    // Log: update text only when it changed; if the user was reading the
-    // bottom, follow it, otherwise leave their scroll position alone.
+    // Log: the list payload carries only a line count. The text is fetched when
+    // the panel is opened (see loadLog) and re-fetched each tick only while the
+    // panel is open AND the job is still running.
     const details = tr.querySelector('details.log');
-    const pre = details.querySelector('pre');
-    const text = (j.log || []).join('\n');
-    show(details, text.length > 0);
-    if (pre.textContent !== text) {
-      const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 12;
-      pre.textContent = text;
-      if (atBottom) pre.scrollTop = pre.scrollHeight;
-    }
+    show(details, j.log_lines > 0);
+    details.querySelector('.logcount').textContent = j.log_lines ? `(${j.log_lines} lines)` : '';
+    if (details.open && active) loadLog(j.id);
+  }
+
+  // Fetch one job's log and put it in its panel. If the reader was at the
+  // bottom, follow new lines; otherwise leave their scroll position alone.
+  async function loadLog(jobId) {
+    const tr = document.getElementById('job-' + jobId);
+    if (!tr) return;
+    const pre = tr.querySelector('details.log pre');
+    try {
+      const r = await api(`/api/jobs/${jobId}/log`);
+      const text = r.lines.join('\n');
+      if (pre.textContent !== text) {
+        const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 12;
+        pre.textContent = text;
+        if (atBottom) pre.scrollTop = pre.scrollHeight;
+      }
+    } catch (e) { pre.textContent = 'Could not load log: ' + e.message; }
   }
 
   function renderFiles(j) {
@@ -444,6 +457,12 @@
     try { await api(`/api/jobs/${playing.jobId}/files/${playing.index}/open`, { method: 'POST' }); stopPlayer(); }
     catch (err) { alert(err.message); }
   };
+
+  // <details> 'toggle' does not bubble, so listen in the capture phase on the table.
+  $('jobs').addEventListener('toggle', e => {
+    const d = e.target;
+    if (d.matches && d.matches('details.log') && d.open) loadLog(parseInt(d.closest('tr').id.slice(4), 10));
+  }, true);
 
   $('jobs').addEventListener('click', async e => {
     const btn = e.target.closest('button');
