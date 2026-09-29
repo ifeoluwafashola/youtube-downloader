@@ -386,21 +386,35 @@
   // Fill a Quality <select> for the chosen type, restoring the last used value.
   // Label for one option, with the inspected video's size and real height when known,
   // e.g. "1080p (Full HD) · 128.4 MB" or "2160p (4K) · gets 1080p · 128.4 MB".
-  function optionLabel(o, type) {
+  // Returns {label, unavailable}. A video quality is "unavailable" when the
+  // video has no stream at or above that height, so choosing it would just
+  // give the same file as the best real option - those are greyed out.
+  function optionInfo(o, type) {
     const sz = info && info.sizes ? info.sizes[`${type}:${o.value}`] : null;
-    if (!sz) return o.label;
+    if (!sz) return { label: o.label, unavailable: false };
+    if (type === 'video' && sz.height && o.value !== 'best' && sz.height < parseInt(o.value, 10)) {
+      const maxH = info.sizes['video:best'] && info.sizes['video:best'].height;
+      // Above the video's maximum: not a real choice.
+      if (maxH && sz.height === maxH) return { label: `${o.label} · not available (max ${maxH}p)`, unavailable: true };
+      // Below the max but this exact height is missing: real, just lower than asked.
+      return { label: `${o.label} · gets ${sz.height}p · ${sz.text}`, unavailable: false };
+    }
     const parts = [o.label];
-    if (type === 'video' && sz.height && o.value !== 'best' && String(sz.height) !== o.value) parts.push(`gets ${sz.height}p`);
     if (type === 'video' && sz.height && o.value === 'best') parts.push(`${sz.height}p`);
     if (sz.text) parts.push(sz.text);
-    return parts.join(' · ');
+    return { label: parts.join(' · '), unavailable: false };
   }
   function fillQuality(sel, type, prefKey) {
     const opts = type === 'audio' ? audioOptions : videoOptions;
     const keep = sel.value;
-    sel.innerHTML = opts.map(o => `<option value="${o.value}">${esc(sel.id === 'quality' ? optionLabel(o, type) : o.label)}</option>`).join('');
-    const remembered = keep && opts.some(o => o.value === keep) ? keep : prefs.get(prefKey + '.' + type);
-    sel.value = opts.some(o => o.value === remembered) ? remembered : (type === 'audio' ? defaultAudio : opts[0].value);
+    const infos = opts.map(o => sel.id === 'quality' ? optionInfo(o, type) : { label: o.label, unavailable: false });
+    sel.innerHTML = opts.map((o, i) => `<option value="${o.value}" ${infos[i].unavailable ? 'disabled' : ''}>${esc(infos[i].label)}</option>`).join('');
+    let want = keep && opts.some(o => o.value === keep) ? keep : prefs.get(prefKey + '.' + type);
+    if (!opts.some(o => o.value === want)) want = type === 'audio' ? defaultAudio : opts[0].value;
+    // If the wanted option is greyed out for this video, fall to the best real one.
+    const idx = opts.findIndex(o => o.value === want);
+    if (idx >= 0 && infos[idx].unavailable) want = 'best';
+    sel.value = want;
     updateHint(sel, type);
   }
   function updateHint(sel, type) {
