@@ -44,7 +44,8 @@ The first visit offers a short tour, and **Help** (top right) has a plain-langua
 guide at any time.
 
 - Paste a video or playlist link and click **Inspect**. You see the title,
-  uploader, duration or the list of videos in the playlist.
+  uploader, duration or the list of videos in the playlist. For a single video
+  each quality option also shows how big the download will be.
 - Choose **Video** and a quality (Best / 4K / 1440p / 1080p / 720p / 480p) and a
   format (MP4 plays everywhere; MKV is the better fit for 4K/VP9/AV1 but does not
   play in the in-page player), or

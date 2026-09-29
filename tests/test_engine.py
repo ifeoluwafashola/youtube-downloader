@@ -141,3 +141,14 @@ def test_user_data_dir_is_per_user_and_exists():
     d = user_data_dir("YouTubeDownloaderTest")
     assert d.is_dir() and str(Path.home()) in str(d)
     d.rmdir()
+
+
+from yt_engine import human_size  # noqa: E402
+
+
+def test_human_size():
+    assert human_size(None) == "" and human_size(0) == ""
+    assert human_size(512) == "512 B"
+    assert human_size(1536) == "1.5 KB"
+    assert human_size(128.4 * 1024 * 1024) == "128.4 MB"
+    assert human_size(3 * 1024 ** 3) == "3.0 GB"

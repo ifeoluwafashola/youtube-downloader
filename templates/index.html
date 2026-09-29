@@ -384,17 +384,32 @@
   const prefs = { get: k => localStorage.getItem('ytdl.' + k), set: (k, v) => localStorage.setItem('ytdl.' + k, v) };
 
   // Fill a Quality <select> for the chosen type, restoring the last used value.
+  // Label for one option, with the inspected video's size and real height when known,
+  // e.g. "1080p (Full HD) · 128.4 MB" or "2160p (4K) · gets 1080p · 128.4 MB".
+  function optionLabel(o, type) {
+    const sz = info && info.sizes ? info.sizes[`${type}:${o.value}`] : null;
+    if (!sz) return o.label;
+    const parts = [o.label];
+    if (type === 'video' && sz.height && o.value !== 'best' && String(sz.height) !== o.value) parts.push(`gets ${sz.height}p`);
+    if (type === 'video' && sz.height && o.value === 'best') parts.push(`${sz.height}p`);
+    if (sz.text) parts.push(sz.text);
+    return parts.join(' · ');
+  }
   function fillQuality(sel, type, prefKey) {
     const opts = type === 'audio' ? audioOptions : videoOptions;
-    sel.innerHTML = opts.map(o => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
-    const remembered = prefs.get(prefKey + '.' + type);
+    const keep = sel.value;
+    sel.innerHTML = opts.map(o => `<option value="${o.value}">${esc(sel.id === 'quality' ? optionLabel(o, type) : o.label)}</option>`).join('');
+    const remembered = keep && opts.some(o => o.value === keep) ? keep : prefs.get(prefKey + '.' + type);
     sel.value = opts.some(o => o.value === remembered) ? remembered : (type === 'audio' ? defaultAudio : opts[0].value);
     updateHint(sel, type);
   }
   function updateHint(sel, type) {
     const hintEl = sel.id === 'quality' ? $('qualityHint') : null;
     if (!hintEl) return;
-    hintEl.textContent = type === 'audio' ? (HINTS[sel.value] || '') : (HINTS[$('container').value] || '');
+    const sz = info && info.sizes ? info.sizes[`${type}:${sel.value}`] : null;
+    const sizeNote = sz && sz.text ? `Download size ${sz.text}${sz.exact ? '' : ' (estimate)'}.` : '';
+    const fmtNote = type === 'audio' ? (HINTS[sel.value] || '') : (HINTS[$('container').value] || '');
+    hintEl.textContent = [sizeNote, fmtNote].filter(Boolean).join(' ');
   }
   // Container applies to video only; fill it once and remember the last choice.
   function fillContainer(sel, prefKey) {
@@ -673,6 +688,7 @@
       `<label><input type="checkbox" value="${e.index}"><span class="idx">${e.index}</span><span>${esc(e.title)}</span></label>`).join('');
     document.querySelector('input[name=scope][value=all]').checked = true;
     updateScope();
+    fillQuality($('quality'), typeOf('type'), 'single');   // labels now carry this video's sizes
     $('addMsg').textContent = '';
   }
 
@@ -712,6 +728,7 @@
       await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
       $('addMsg').textContent = 'Added to queue.';
       $('url').value = ''; info = null; show($('detected'), false);
+      fillQuality($('quality'), typeOf('type'), 'single');
       refresh();
     } catch (err) { $('addMsg').textContent = err.message; }
   }

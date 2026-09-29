@@ -86,6 +86,7 @@ Tracks features, their implementation status, and notes.
 |---|---------|--------|-------|
 | 31 | Local Flask server, browser auto-opens | ✅ | Bound to 127.0.0.1 only; `--port`, `--output`, `--no-browser`. State-changing requests must be same-origin JSON, so a web page you visit cannot drive the console (CSRF guard). Console window shows only the status lines - no dev-server banner or per-request log |
 | 32 | Inspect URL → show title / uploader / duration / entry list | ✅ | |
+| 32a | Download size before downloading | ✅ | After Inspect, each Quality option shows the size it would download and the real height it would get (`2160p (4K) · gets 1080p · 128.4 MB`); the hint line repeats it for the current choice. Uses yt-dlp's own format selector on the data Inspect already fetched (no extra request); exact stream sizes where YouTube reports them, `~` estimates from bitrate × duration otherwise; converted audio (MP3/WAV) estimated from its target bitrate. Single videos only - playlists would need one request per item |
 | 33 | Per-job quality, audio-only, playlist scope | ✅ | Range inputs or checkbox picker with select all / none |
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
 | 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time. Rows are patched in place (a cell is only re-rendered when it changes), so scroll position and text selection in a log survive refreshes |

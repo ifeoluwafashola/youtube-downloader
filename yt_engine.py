@@ -182,6 +182,18 @@ def parse_selection(raw: str, total: int) -> tuple[Optional[str], list[str]]:
     return (",".join(valid) if valid else None), warnings
 
 
+def human_size(n) -> str:
+    """Bytes -> '12.3 MB'. Empty string for None/0."""
+    if not n:
+        return ""
+    n = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
 def format_duration(seconds) -> str:
     """Render seconds as m:ss or h:mm:ss; empty string if unknown."""
     if not seconds:
@@ -492,6 +504,10 @@ class MediaInfo:
     count: int = 1
     entries: list[Entry] = field(default_factory=list)
     mixed_url: bool = False         # watch?v=..&list=.. - could be either
+    # Estimated download size per choice, videos only. Keys are "video:<quality>"
+    # ("video:best", "video:1080", ...) and "audio:<code>" ("audio:mp3-320", ...);
+    # values are {"bytes": int|None, "text": "~145 MB", "height": 1080|None, "exact": bool}.
+    sizes: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
@@ -630,6 +646,66 @@ class Downloader:
         opts["progress_hooks"] = [self._progress_hook]
         opts["postprocessor_hooks"] = [self._pp_hook]
         return opts
+
+    def estimate_sizes(self, info: dict) -> dict:
+        """
+        For a single video's info dict, work out what each quality / audio choice
+        would download, using yt-dlp's own format selector so the answer matches
+        the real download. Sizes come from the streams' filesize (exact) or
+        filesize_approx (bitrate x duration); converted audio is estimated from
+        its target bitrate.
+        """
+        formats = info.get("formats") or []
+        duration = info.get("duration") or 0
+        if not formats:
+            return {}
+        out: dict = {}
+        with yt_dlp.YoutubeDL({"quiet": True, "logger": _Logger(lambda _m: None)}) as ydl:
+            def pick(spec: str):
+                try:
+                    chosen = ydl._select_formats(formats, ydl.build_format_selector(spec))
+                except Exception:
+                    return None
+                return chosen[0] if chosen else None
+
+            def size_of(fmt) -> tuple[Optional[int], bool]:
+                parts = fmt.get("requested_formats") or [fmt]
+                total, exact = 0, True
+                for part in parts:
+                    if part.get("filesize"):
+                        total += part["filesize"]
+                    elif part.get("filesize_approx"):
+                        total += part["filesize_approx"]; exact = False
+                    elif part.get("tbr") and duration:
+                        total += int(part["tbr"] * 1000 / 8 * duration); exact = False
+                    else:
+                        return None, False
+                return total, exact
+
+            for q in QUALITIES:
+                fmt = pick(self._format_opts(q, None)["format"])
+                if not fmt:
+                    continue
+                size, exact = size_of(fmt)
+                height = fmt.get("height") or next((p.get("height") for p in fmt.get("requested_formats") or [] if p.get("height")), None)
+                out[f"video:{q}"] = {"bytes": size, "text": (("" if exact else "~") + human_size(size)) if size else "",
+                                     "height": height, "exact": exact}
+
+            src = pick("bestaudio/best")
+            src_size, src_exact = size_of(src) if src else (None, False)
+            for code, (_label, codec, kbps, _extra, _tag) in AUDIO_FORMATS.items():
+                if codec == "best":
+                    size, exact = src_size, src_exact
+                elif codec == "mp3" and kbps and duration:
+                    size, exact = int(int(kbps) * 1000 / 8 * duration), False
+                elif codec == "wav" and duration:
+                    bits = 24 if code.endswith("24") else 16
+                    size, exact = int(48000 * 2 * bits / 8 * duration), False   # 48 kHz stereo PCM
+                else:
+                    size, exact = None, False
+                out[f"audio:{code}"] = {"bytes": size, "text": (("" if exact else "~") + human_size(size)) if size else "",
+                                        "height": None, "exact": exact}
+        return out
 
     def _format_opts(self, quality: str, audio: Optional[str], container: str = DEFAULT_CONTAINER) -> dict:
         ffmpeg = self.settings.ffmpeg
@@ -775,6 +851,7 @@ class Downloader:
             title=info.get("title") or "video",
             uploader=info.get("uploader") or info.get("channel") or "",
             duration=info.get("duration"), count=1, mixed_url=mixed, raw=info,
+            sizes=self.estimate_sizes(info),
         )
 
     def list_formats(self, url: str) -> str:
