@@ -58,17 +58,28 @@
   .entries label:last-child { border-bottom:0; }
   .entries label.hidden { display:none; }
   .entries .idx { width:3em; color:var(--muted); text-align:right; }
-  .tablewrap { margin-top:10px; overflow-x:auto; max-width:100%; }
-  table { width:100%; min-width:720px; border-collapse:collapse; table-layout:fixed; }
-  td { overflow-wrap:anywhere; }
-  /* Column widths are set on the header so the detail row (colspan) can never squeeze the summary row. */
-  th.c-id { width:36px; } th.c-type { width:72px; } th.c-quality { width:140px; } th.c-status { width:110px; } th.c-prog { width:200px; } th.c-actions { width:250px; }
-  td[data-cell="actions"] { white-space:nowrap; text-align:right; }
-  td[data-cell="actions"] .small { margin-left:4px; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
-  td.title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  td.title small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; }
+  /* Queue: a CSS grid. Fixed columns for metadata, the title takes what is left,
+     and each job's files/log sit in a full-width area under its row. Content can
+     never resize the columns, unlike a table. */
+  .jobs { margin-top:10px; --cols: 36px minmax(0,1fr) 64px 150px 100px 200px max-content; }
+  .jobrow { display:grid; grid-template-columns:var(--cols); gap:0 10px; align-items:start; padding:8px 10px; border-bottom:1px solid var(--line); min-width:0; }
+  .jobrow > div { min-width:0; overflow-wrap:anywhere; }
+  .jobrow.head { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; padding-top:0; }
+  .job .jobrow { border-bottom:0; }
+  .job { border-bottom:1px solid var(--line); }
+  .job:last-child { border-bottom:0; }
+  .job .detail { padding:0 10px 10px 56px; }          /* aligns with the title column */
+  .job .detail:empty, .job .detail.hidden { display:none; }
+  .jt .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .jt small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .jobrow .actions { white-space:nowrap; text-align:right; }
+  .jobrow .actions .small + .small { margin-left:4px; }
+  .detail pre.out { max-height:240px; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text; margin-top:6px; }
+  @media (max-width: 900px) {
+    .jobs { --cols: 36px minmax(0,1fr) 200px; }
+    .jobrow.head > div:nth-child(n+3):not(:last-child), .jobrow > .kind, .jobrow > .quality, .jobrow > .status { display:none; }
+    .job .detail { padding-left:10px; }
+  }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; color:#fff; background:var(--skip); }
   .badge.SUCCESS { background:var(--ok); } .badge.PARTIAL { background:var(--warn); } .badge.FAILED { background:var(--bad); }
   .badge.DOWNLOADING, .badge.INSPECTING { background:var(--accent); } .badge.QUEUED { background:#8c959f; }
@@ -82,13 +93,6 @@
   pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
   details summary { cursor:pointer; color:var(--accent); font-size:12px; }
   details summary button { margin-left:6px; vertical-align:middle; }
-  tbody.job > tr:first-child > td { border-bottom:0; }
-  tbody.job > tr.detail > td { padding-top:0; overflow:visible; white-space:normal; }
-  tr.detail pre.out, tr.detail .files { width:100%; max-width:100%; box-sizing:border-box; }
-  tr.detail pre.out { overflow-wrap:anywhere; }
-  html, body { overflow-x:hidden; }
-  tbody.job:last-child > tr.detail > td, tbody.job:last-child > tr:first-child > td { border-bottom:0; }
-  tr.detail pre.out { max-height:240px; white-space:pre-wrap; word-break:break-all; user-select:text; margin-top:6px; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
   .seg label { padding:6px 12px; cursor:pointer; background:#f6f8fa; border-right:1px solid var(--line); user-select:none; }
@@ -106,7 +110,6 @@
   .files li.missing .fname { text-decoration:line-through; color:var(--muted); }
   .files .miss { color:var(--bad); font-size:11px; }
   .badge.INTERRUPTED { background:var(--warn); } .badge.CANCELLED { background:var(--skip); }
-  td .small + .small { margin-left:4px; }
   dialog.panel { border:1px solid var(--line); border-radius:12px; padding:0; width:min(760px, 94vw); max-height:88vh; background:var(--card); color:var(--text); box-shadow:0 20px 60px rgba(0,0,0,.25); }
   dialog.panel::backdrop { background:rgba(20,24,30,.45); }
   dialog.panel .dlg-head { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); z-index:1; }
@@ -259,11 +262,11 @@
         <button id="btnClear" class="small" title="Remove all finished jobs from this list (files are not deleted)">Clear history</button>
       </div>
     </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th class="c-id">#</th><th>Title</th><th class="c-type">Type</th><th class="c-quality">Quality</th><th class="c-status">Status</th><th class="c-prog">Progress</th><th class="c-actions"></th></tr></thead>
-        <tbody id="jobs"></tbody>
-      </table>
+    <div class="jobs">
+      <div class="jobrow head">
+        <div>#</div><div>Title</div><div>Type</div><div>Quality</div><div>Status</div><div>Progress</div><div></div>
+      </div>
+      <div id="jobs"></div>
       <div id="olderRow" class="hidden" style="text-align:center; padding:10px">
         <button class="small" id="btnOlder"></button>
       </div>
@@ -543,7 +546,7 @@
     } catch (e) { /* server restarting; try again next tick */ }
   }
 
-  // The table is patched in place rather than rebuilt: a cell is only
+  // The queue is patched in place rather than rebuilt: a cell is only
   // re-rendered when its content changes, so scroll position and text
   // selection inside a finished job's log survive the 1-second refresh.
   const cellCache = new Map();   // "jobId:cell" -> last html written
@@ -565,24 +568,24 @@
       keep.add(id);
       let tr = document.getElementById(id);
       if (!tr) {
-        // One <tbody> per job: a summary row, then a detail row that spans the
-        // full width for the file list and the log.
-        tr = document.createElement('tbody');
+        // One block per job: a grid row for the summary, then a full-width
+        // detail area for the file list and the log.
+        tr = document.createElement('div');
         tr.id = id;
         tr.className = 'job';
-        tr.innerHTML = `<tr>
-          <td data-cell="id">${j.id}</td>
-          <td class="title" data-cell-title><div data-cell="title"></div></td>
-          <td data-cell="kind"></td>
-          <td data-cell="quality"></td>
-          <td data-cell="status"></td>
-          <td class="prog" data-cell="prog"></td>
-          <td data-cell="actions"></td>
-        </tr>
-        <tr class="detail"><td colspan="7">
+        tr.innerHTML = `<div class="jobrow">
+          <div data-cell="id">${j.id}</div>
+          <div class="jt" data-cell-title><div data-cell="title"></div></div>
+          <div class="kind" data-cell="kind"></div>
+          <div class="quality" data-cell="quality"></div>
+          <div class="status" data-cell="status"></div>
+          <div class="prog" data-cell="prog"></div>
+          <div class="actions" data-cell="actions"></div>
+        </div>
+        <div class="detail">
           <div data-cell="files"></div>
           <details class="log hidden"><summary>log <span class="logcount muted"></span> <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details>
-        </td></tr>`;
+        </div>`;
         tb.appendChild(tr);
       }
       // Keep rows in queue order without recreating them.
@@ -608,7 +611,7 @@
       : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : '')) + missing;
 
     tr.querySelector('[data-cell-title]').title = j.url;
-    setCell(tr, j, 'title', `${esc(j.title || '(inspecting…)')}<small>${esc(j.url)}</small>`);
+    setCell(tr, j, 'title', `<div class="name">${esc(j.title || '(inspecting…)')}</div><small>${esc(j.url)}</small>`);
     setCell(tr, j, 'files', (j.files || []).length ? renderFiles(j) : '');
     setCell(tr, j, 'kind', `${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}`);
     setCell(tr, j, 'quality', esc(j.quality_label) + (j.clip_label ? `<br><small class="muted">clip ${esc(j.clip_label)}</small>` : ''));
@@ -626,7 +629,7 @@
     // panel is open AND the job is still running.
     const details = tr.querySelector('details.log');
     show(details, j.log_lines > 0);
-    show(tr.querySelector('tr.detail'), j.log_lines > 0 || (j.files || []).length > 0);
+    show(tr.querySelector('.detail'), j.log_lines > 0 || (j.files || []).length > 0);
     details.querySelector('.logcount').textContent = j.log_lines ? `(${j.log_lines} lines)` : '';
     if (details.open && active) loadLog(j.id);
   }
@@ -704,10 +707,10 @@
     catch (err) { alert(err.message); }
   };
 
-  // <details> 'toggle' does not bubble, so listen in the capture phase on the table.
+  // <details> 'toggle' does not bubble, so listen in the capture phase on the queue container.
   $('jobs').addEventListener('toggle', e => {
     const d = e.target;
-    if (d.matches && d.matches('details.log') && d.open) loadLog(parseInt(d.closest('tbody.job').id.slice(4), 10));
+    if (d.matches && d.matches('details.log') && d.open) loadLog(parseInt(d.closest('.job').id.slice(4), 10));
   }, true);
 
   $('jobs').addEventListener('click', async e => {
