@@ -869,7 +869,8 @@ class Downloader:
     def download(self, url: str, *, kind: Optional[str] = None, quality: str = "best",
                  audio=None, items: str = "", noplaylist: bool = False,
                  title: str = "", start: Optional[float] = None, end: Optional[float] = None,
-                 force: bool = False, container: str = DEFAULT_CONTAINER) -> Result:
+                 force: bool = False, container: str = DEFAULT_CONTAINER,
+                 numbered: bool = True, count: int = 0) -> Result:
         """
         Download a video or playlist and append a line to the run log.
 
@@ -883,6 +884,10 @@ class Downloader:
         force: ignore the playlist download archive, so items whose files were
                deleted are fetched again (files still present are skipped).
         container: "mp4" (default) or "mkv" for video downloads.
+        numbered: playlists only - prefix each file with its zero-padded position
+                  in the playlist ("01 - Title.mp4"); False gives plain titles.
+        count: playlist size if already known (from inspect), used for the padding
+               width; looked up if 0.
         """
         quality = normalize_quality(quality) or "best"
         if audio is not None and audio is not False and normalize_audio(audio) is None:
@@ -899,13 +904,16 @@ class Downloader:
             self._cancel.clear()
             logger = _Logger(self.on_message)
             self.settings.output_dir.mkdir(parents=True, exist_ok=True)
+            info = None
             try:
                 if kind is None or not title:
                     info = self.inspect(url, noplaylist=noplaylist)
                     kind, title = kind or info.kind, title or info.title
                 self._check_cancel()
                 if kind == "playlist":
-                    retcode = self._download_playlist(url, quality, audio, items, logger, force, container)
+                    if kind == "playlist" and numbered and not count and info is not None:
+                        count = info.count
+                    retcode = self._download_playlist(url, quality, audio, items, logger, force, container, numbered, count)
                 else:
                     retcode = self._download_video(url, quality, audio, logger, start, end, container)
             except yt_dlp.utils.DownloadCancelled:
@@ -974,14 +982,27 @@ class Downloader:
         return 0
 
     def _download_playlist(self, url, quality, audio, items, logger, force=False,
-                           container=DEFAULT_CONTAINER) -> int:
+                           container=DEFAULT_CONTAINER, numbered=True, count=0) -> int:
         out = self.settings.output_dir
         opts = self._common_opts(logger)
+        # "01 - Title" keeps files in playlist order in any file manager. The
+        # padding follows the playlist size: 2 digits up to 99 items, 3 up to
+        # 999. The number is the item's position in the playlist (stable even
+        # when only a range is downloaded), not a download counter.
+        name = "%(playlist_index)0{w}d - %(title)s.%(ext)s" if numbered else "%(title)s.%(ext)s"
+        if numbered and not count:
+            try:
+                flat = yt_dlp.YoutubeDL({"quiet": True, "extract_flat": True, "logger": _Logger(lambda _m: None),
+                                         **self.settings.cookie_opts()}).extract_info(url, download=False)
+                count = int(flat.get("playlist_count") or len(flat.get("entries") or []))
+            except Exception:
+                count = 0
+        name = name.format(w=max(2, len(str(count))))
         opts.update(self._format_opts(quality, audio, container))
         mode = audio if audio else "video"     # e.g. archive_mp3-320.txt, archive_wav-24.txt, archive_video.txt
         opts.update({
             "outtmpl": {
-                "default": str(out / "%(playlist_title)s" / "%(playlist_index)s - %(title)s.%(ext)s"),
+                "default": str(out / "%(playlist_title)s" / name),
                 # Empty template = do not write the playlist's own thumbnail file.
                 "pl_thumbnail": "",
             },

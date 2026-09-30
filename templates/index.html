@@ -233,6 +233,9 @@
           </span>
         </div>
         <div id="entries" class="entries hidden"></div>
+        <label style="margin-top:8px" title="Files are named by their position in the playlist, e.g. 01 - Intro.mp4, 02 - Lesson one.mp4, so they stay in course order in any folder view. The number is the playlist position even when you download only a range.">
+          <input type="checkbox" id="numbered" checked> Number files in playlist order <span class="hint">(01 - Title, 02 - Title …)</span>
+        </label>
       </div>
       <div class="row" style="margin-top:12px">
         <button id="btnAdd" class="primary">Add to queue</button>
@@ -333,6 +336,7 @@
       <section>
         <h3>Playlists</h3>
         <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones. Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
+        <p>Files are numbered by their position in the playlist (<code>01 - Intro.mp4</code>, <code>02 - Lesson one.mp4</code>), so a course stays in order in any folder. Untick <b>Number files</b> for plain titles.</p>
         <p>A link that contains both a video and a playlist (<code>watch?v=…&amp;list=…</code>) asks which one you mean.</p>
       </section>
       <section>
@@ -840,6 +844,7 @@
       const body = Object.assign({ url: info.url, kind: info.kind, title: info.title,
                      noplaylist, items: info.kind === 'playlist' ? scopeItems() : '',
                      total: info.count,
+                     numbered: $('numbered').checked,
                      start: (info.kind === 'video' && $('clip').checked) ? $('clipStart').value : '',
                      end: (info.kind === 'video' && $('clip').checked) ? $('clipEnd').value : '' },
                      selection('type', $('quality'), $('container')));
@@ -952,6 +957,8 @@
   $('bulkContainer').addEventListener('change', () => prefs.set('bulk.container', $('bulkContainer').value));
   $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
+  $('numbered').checked = prefs.get('numbered') !== '0';
+  $('numbered').onchange = () => prefs.set('numbered', $('numbered').checked ? '1' : '0');
 
   // Help and Settings are dialogs: the page behind stays exactly as it was.
   function openDlg(id) { const d = $(id); if (!d.open) d.showModal(); }

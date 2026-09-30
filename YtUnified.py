@@ -219,7 +219,7 @@ def interactive_main(settings: Settings):
         scope = "" if info.kind == "video" else (" (all videos)" if items == "" else f" (items {items})")
         print(f"\nDownloading {what}{scope}...")
         result = dl.download(url, kind=info.kind, title=info.title, quality=quality,
-                             audio=audio or None, items=items, noplaylist=noplaylist)
+                             audio=audio or None, items=items, noplaylist=noplaylist, count=info.count)
         report(result)
 
         if input("\nDownload another? (y/n): ").strip().lower() not in ("y", "yes"):
@@ -246,6 +246,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", default="./downloads", help="Output directory (default ./downloads)")
     p.add_argument("--items", default="",
                    help="Playlist selection, e.g. '5-20' or '1,3,7' (playlists only; default all)")
+    p.add_argument("--no-number", action="store_true",
+                   help="Playlists: plain titles instead of '01 - Title' file names")
     p.add_argument("--no-playlist", action="store_true",
                    help="For watch?v=..&list=.. links, download only the video")
     p.add_argument("--no-ffmpeg", action="store_true",
@@ -297,7 +299,7 @@ def run_noninteractive(args, settings: Settings) -> int:
 
     result = dl.download(args.url, kind=info.kind, title=info.title, quality=quality,
                          audio=audio, items=args.items, noplaylist=args.no_playlist,
-                         container=args.container)
+                         container=args.container, numbered=not args.no_number, count=info.count)
     report(result)
     return 0 if result.ok or result.status == "SKIPPED" else 1
 

@@ -101,6 +101,8 @@ class Job:
     end: Optional[float] = None
     force: bool = False              # re-download: ignore the playlist archive
     container: str = DEFAULT_CONTAINER   # mp4 | mkv (video only)
+    numbered: bool = True            # playlists: "01 - Title" file names
+    count: int = 0                   # playlist size from inspect (padding width)
     kind: Optional[str] = None       # filled by inspect if not supplied
     title: str = ""
     output_dir: str = ""             # folder in effect when the job ran
@@ -120,7 +122,7 @@ class Job:
     # -- persistence ------------------------------------------------------------
 
     PERSISTED = ("id", "url", "quality", "audio", "items", "noplaylist", "start", "end", "force", "container",
-                 "kind", "title", "output_dir", "status", "detail", "completed", "files",
+                 "numbered", "count", "kind", "title", "output_dir", "status", "detail", "completed", "files",
                  "total_size", "added", "finished")
 
     def to_record(self) -> dict:
@@ -346,7 +348,8 @@ class QueueWorker:
             return None
         return self.add(url=src.url, quality=src.quality, audio=src.audio, items=src.items,
                         noplaylist=src.noplaylist, start=src.start, end=src.end,
-                        container=src.container, kind=src.kind, title=src.title, force=True)
+                        container=src.container, numbered=src.numbered, count=src.count,
+                        kind=src.kind, title=src.title, force=True)
 
     def remove_finished(self, job_id: int, delete_files: bool) -> Optional[dict]:
         """
@@ -472,7 +475,8 @@ class QueueWorker:
                 result = self.downloader.download(
                     job.url, kind=job.kind, title=job.title, quality=job.quality,
                     audio=job.audio or None, items=job.items, noplaylist=job.noplaylist,
-                    start=job.start, end=job.end, force=job.force, container=job.container)
+                    start=job.start, end=job.end, force=job.force, container=job.container,
+                    numbered=job.numbered, count=job.count)
                 job.status, job.detail, job.completed = result.status, result.detail, result.completed
                 job.set_files(result.files)
             except _Cancelled:
@@ -652,6 +656,7 @@ def api_add_jobs():
             continue
         job = worker.add(
             url=url, quality=quality, audio=audio, items=items, container=container,
+            numbered=data.get("numbered", True) is not False, count=int(data.get("total") or 0),
             noplaylist=bool(data.get("noplaylist")), start=start, end=end,
             kind=data.get("kind") if len(urls) == 1 else None,
             title=(data.get("title") or "") if len(urls) == 1 else "",

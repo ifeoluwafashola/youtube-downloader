@@ -53,7 +53,9 @@ guide at any time.
   24-bit, or the original stream with no conversion. Your last choice is
   remembered.
 - For playlists, download **All**, a **Range** (e.g. 5–20), or **Pick**
-  individual videos (with a title filter for long lists).
+  individual videos (with a title filter for long lists). Files are numbered by
+  playlist position (`01 - Intro.mp4`, `02 - …`) so courses stay in order;
+  untick **Number files** for plain titles.
 - Links of the form `watch?v=...&list=...` ask whether you want just that video
   or the whole playlist.
 - Tick **Clip** on a single video to download only part of it, e.g. from

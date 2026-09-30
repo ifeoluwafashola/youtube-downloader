@@ -55,7 +55,7 @@ Tracks features, their implementation status, and notes.
 | 15 | Playlist title listing before download | ✅ | |
 | 16 | Scope selection — all / range / specific videos | ✅ | `1,3,5-8` or `1 3 5-8`; validated against entry count. Pick list has a title filter; hidden rows keep their ticks, "Select shown" acts on the filtered rows, a counter shows selected / shown |
 | 17 | Download archive (skip already-downloaded items) | ✅ | Separate `archive_video.txt` / `archive_audio.txt` so an MP3 run does not hide a later video run |
-| 18 | Per-playlist subfolder | ✅ | `downloads/<playlist title>/<index> - <title>.<ext>`; playlist cover image no longer written |
+| 18 | Per-playlist subfolder, numbered files | ✅ | `downloads/<playlist title>/01 - <title>.<ext>`. The number is the item's position in the playlist, zero-padded to the playlist size (2 digits to 99, 3 to 999), so a course stays in order in any file manager and a later Range download slots in. Optional ("Number files in playlist order", remembered; CLI `--no-number`) |
 | 19 | Accurate outcome for playlists | ✅ | SUCCESS / PARTIAL / FAILED / SKIPPED based on completed count and yt-dlp return code — previously always SUCCESS |
 
 ## Reliability and Performance
