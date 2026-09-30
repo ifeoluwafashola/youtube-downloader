@@ -66,7 +66,8 @@ guide at any time.
 - If the tab is in the background when the queue finishes, a desktop
   notification tells you (allow it when the browser asks).
 - The list is kept as history across restarts. If a file is later deleted from
-  disk it is marked, and **Download again** fetches it once more.
+  disk it is marked, and **Download again** fetches it once more. **Remove**
+  drops an entry from the list, and can optionally delete its files too.
 - **Settings** (top right) holds the download folder (**Browse…** opens a normal
   folder picker; the choice is remembered) and shows the program, yt-dlp and
   FFmpeg versions.

@@ -348,6 +348,42 @@ class QueueWorker:
                         noplaylist=src.noplaylist, start=src.start, end=src.end,
                         container=src.container, kind=src.kind, title=src.title, force=True)
 
+    def remove_finished(self, job_id: int, delete_files: bool) -> Optional[dict]:
+        """
+        Drop a finished job from history. With delete_files, also delete the
+        files this job recorded - and only those - from disk. Returns a summary,
+        or None if the job is not finished.
+        """
+        with self._lock:
+            job = next((j for j in self.jobs if j.id == job_id), None)
+            if job is None or job.status not in TERMINAL:
+                return None
+            self.jobs = [j for j in self.jobs if j.id != job_id]
+        deleted, failed = [], []
+        if delete_files:
+            root = Path(job.output_dir or self.settings.output_dir).resolve()
+            for f in job.files:
+                path = Path(f["path"]).resolve()
+                if root not in path.parents:          # never touch anything outside the download folder
+                    failed.append(f"{path.name}: outside the download folder")
+                    continue
+                try:
+                    if path.is_file():
+                        path.unlink()
+                        deleted.append(path.name)
+                except OSError as e:
+                    failed.append(f"{path.name}: {e.strerror or e}")
+            # Tidy an empty playlist folder left behind.
+            for f in job.files:
+                parent = Path(f["path"]).parent
+                try:
+                    if parent != root and root in parent.parents and parent.is_dir() and not any(parent.iterdir()):
+                        parent.rmdir()
+                except OSError:
+                    pass
+        self.save()
+        return {"deleted": deleted, "failed": failed}
+
     def clear_finished(self) -> int:
         with self._lock:
             before = len(self.jobs)
@@ -688,11 +724,17 @@ def api_reveal_job(job_id: int):
 
 @app.delete("/api/jobs/<int:job_id>")
 def api_remove_job(job_id: int):
-    """Remove a queued job, or cancel one that is running."""
+    """
+    Queued job: remove it. Running job: cancel it. Finished job: drop it from
+    history, and with ?files=1 also delete its downloaded files from disk.
+    """
     what = worker.cancel(job_id)
     if what:
         return jsonify({"ok": True, "cancelled": what})
-    return _bad("This job is not queued or running.", 409)
+    result = worker.remove_finished(job_id, delete_files=request.args.get("files") == "1")
+    if result is None:
+        return _bad("Job not found.", 404)
+    return jsonify({"ok": True, **result})
 
 
 @app.post("/api/jobs/<int:job_id>/redownload")

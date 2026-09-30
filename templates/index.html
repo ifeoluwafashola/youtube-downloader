@@ -297,6 +297,20 @@
 
 </main>
 
+<dialog id="removeDlg" class="panel" style="width:min(460px,94vw)">
+  <div class="dlg-head"><h2>Remove from history</h2><button class="small" data-close>Close</button></div>
+  <div class="dlg-body">
+    <div id="removeTitle" style="font-weight:600; margin-bottom:8px"></div>
+    <div id="removeFilesList" class="hint" style="margin-bottom:10px"></div>
+    <label id="removeFilesRow"><input type="checkbox" id="removeFiles"> <b>Also delete the downloaded file(s) from disk</b></label>
+    <div class="hint" id="removeNote" style="margin-top:4px">Unticked: only this entry disappears from the list; files stay where they are.</div>
+    <div class="row" style="margin-top:14px; justify-content:flex-end">
+      <button class="small" data-close>Cancel</button>
+      <button class="small primary" id="btnRemoveConfirm">Remove</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="helpDlg" class="panel">
     <div class="dlg-head">
       <h2>Help</h2>
@@ -423,6 +437,7 @@
   let updateBusy = false;   // banner shows update progress / result instead of "available"
   let currentFolder = '', currentPort = 0;
   let showAll = false;      // queue: poll the last 50 rows, or everything
+  let lastJobs = [];        // most recent job list from the poll
   let optionsLoaded = false;
   let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
   const HINTS = {
@@ -543,6 +558,7 @@
         showContainer(typeOf('type')); show($('bulkContainerBox'), typeOf('bulkType') === 'video');
         optionsLoaded = true;
       }
+      lastJobs = st.jobs;
       renderJobs(st.jobs);
       show($('olderRow'), st.jobs_hidden > 0 || (showAll && st.jobs_total > 50));
       $('btnOlder').textContent = showAll ? 'Show recent only' : `Show ${st.jobs_hidden} older`;
@@ -626,7 +642,8 @@
       (j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : '') +
       (active ? `<button class="small" data-rm="${j.id}" ${j.detail === 'Cancelling...' ? 'disabled' : ''}>Cancel</button>` : '') +
       (j.can_redownload ? `<button class="small" data-redl="${j.id}" title="Queue this again with the same settings">Download again</button>` : '') +
-      (anyFile ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : ''));
+      (anyFile ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : '') +
+      (!active && j.status !== 'QUEUED' ? `<button class="small" data-del="${j.id}" title="Remove from history, optionally deleting the files">Remove</button>` : ''));
 
     // Log: the list payload carries only a line count. The text is fetched when
     // the panel is opened (see loadLog) and re-fetched each tick only while the
@@ -723,6 +740,8 @@
     if (btn.dataset.copy) {
       e.preventDefault();
       copyLog(btn.dataset.copy, btn);
+    } else if (btn.dataset.del) {
+      openRemove(parseInt(btn.dataset.del, 10));
     } else if (btn.dataset.rm) {
       try { await api('/api/jobs/' + btn.dataset.rm, { method: 'DELETE' }); refresh(); } catch (err) { alert(err.message); }
     } else if (btn.dataset.redl) {
@@ -837,6 +856,40 @@
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') inspect(); });
   document.querySelectorAll('input[name=mixed]').forEach(r => r.addEventListener('change', inspect));
   document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', updateScope));
+  // Remove a finished job: confirm, with an opt-in to delete its files too.
+  let removeTarget = null;
+  function openRemove(jobId) {
+    const j = lastJobs.find(x => x.id === jobId);
+    if (!j) return;
+    removeTarget = j;
+    $('removeTitle').textContent = j.title || j.url;
+    const present = (j.files || []).filter(f => f.exists !== false);
+    $('removeFilesList').textContent = present.length
+      ? `${present.length} file(s) on disk · ${j.total_size_text || ''}: ` + present.map(f => f.name).join(', ')
+      : 'No files on disk for this entry.';
+    show($('removeFilesRow'), present.length > 0);
+    $('removeFiles').checked = false;
+    $('btnRemoveConfirm').textContent = 'Remove';
+    $('btnRemoveConfirm').style.background = '';
+    openDlg('removeDlg');
+  }
+  $('removeFiles').onchange = () => {
+    const del = $('removeFiles').checked;
+    $('btnRemoveConfirm').textContent = del ? 'Remove and delete files' : 'Remove';
+    $('btnRemoveConfirm').style.background = del ? 'var(--bad)' : '';
+    $('removeNote').textContent = del ? 'The file(s) listed above will be permanently deleted.' : 'Unticked: only this entry disappears from the list; files stay where they are.';
+  };
+  $('btnRemoveConfirm').onclick = async () => {
+    if (!removeTarget) return;
+    const del = $('removeFiles').checked;
+    try {
+      const r = await api(`/api/jobs/${removeTarget.id}` + (del ? '?files=1' : ''), { method: 'DELETE' });
+      closeDlg('removeDlg');
+      if (r.failed && r.failed.length) alert('Removed from history, but could not delete:\n' + r.failed.join('\n'));
+      refresh();
+    } catch (err) { alert(err.message); }
+  };
+
   // Desktop notification when the queue goes from busy to idle while this tab
   // is not in front. Permission is asked the first time a job is added.
   let wasBusy = false;
@@ -891,7 +944,7 @@
   function closeDlg(id) { const d = $(id); if (d.open) d.close(); }
   $('btnSettings').onclick = () => openDlg('settingsDlg');
   $('btnHelp').onclick = () => openDlg('helpDlg');
-  for (const id of ['helpDlg', 'settingsDlg']) {
+  for (const id of ['helpDlg', 'settingsDlg', 'removeDlg']) {
     const d = $(id);
     d.querySelectorAll('[data-close]').forEach(b => b.onclick = () => d.close());
     d.addEventListener('click', e => { if (e.target === d) d.close(); });   // click on the backdrop
