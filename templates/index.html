@@ -113,6 +113,7 @@
   .files .badge { font-weight:400; }
   .files li.missing .fname { text-decoration:line-through; color:var(--muted); }
   .files .miss { color:var(--bad); font-size:11px; }
+  .badge.clip { background:#dbeafe; color:#1e40af; font-weight:500; vertical-align:middle; }
   .badge.INTERRUPTED { background:var(--warn); } .badge.CANCELLED { background:var(--skip); }
   dialog.panel { border:1px solid var(--line); border-radius:12px; padding:0; width:min(760px, 94vw); max-height:88vh; background:var(--card); color:var(--text); box-shadow:0 20px 60px rgba(0,0,0,.25); }
   dialog.panel::backdrop { background:rgba(20,24,30,.45); }
@@ -631,10 +632,10 @@
       : esc(j.detail || (j.completed ? `${j.completed} file(s)${j.total_size_text ? ' · ' + j.total_size_text : ''}` : '')) + missing;
 
     tr.querySelector('[data-cell-title]').title = j.url;
-    setCell(tr, j, 'title', `<div class="name">${esc(j.title || '(inspecting…)')}</div><small>${esc(j.url)}</small>`);
+    setCell(tr, j, 'title', `<div class="name">${esc(j.title || '(inspecting…)')}${j.clip_label ? ` <span class="badge clip" title="Only this part of the video was downloaded">clip ${esc(j.clip_label)}</span>` : ''}</div><small>${esc(j.url)}</small>`);
     setCell(tr, j, 'files', (j.files || []).length ? renderFiles(j) : '');
     setCell(tr, j, 'kind', `${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}`);
-    setCell(tr, j, 'quality', esc(j.quality_label) + (j.clip_label ? `<br><small class="muted">clip ${esc(j.clip_label)}</small>` : ''));
+    setCell(tr, j, 'quality', esc(j.quality_label));
     setCell(tr, j, 'status', `<span class="badge ${j.status}">${j.status}</span>`);
     setCell(tr, j, 'prog', `${bar}<small>${sub}</small>`);
     const anyFile = (j.files || []).some(f => f.exists !== false);

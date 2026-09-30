@@ -943,7 +943,9 @@ class Downloader:
                 raise EngineError("Clip end must be after clip start.")
             # yt-dlp hands the range to ffmpeg, which downloads only that section.
             opts["download_ranges"] = yt_dlp.utils.download_range_func(None, [(lo, hi if hi is not None else float("inf"))])
-            clip_tag = f"{format_timestamp(lo)}-{format_timestamp(hi) if hi is not None else 'end'}"
+            # Goes into the filename, so a clip never collides with the full video
+            # or with a different section: "Title [1080p clip 00.10-01.00].mp4".
+            clip_tag = f"clip {format_timestamp(lo)}-{format_timestamp(hi) if hi is not None else 'end'}"
 
         # Pass 1: resolve metadata and select the format, so the filename can
         # carry the *actual* height and be checked for collisions.

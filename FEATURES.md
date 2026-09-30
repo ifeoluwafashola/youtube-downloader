@@ -41,7 +41,7 @@ Tracks features, their implementation status, and notes.
 | 6 | Metadata embedding | ✅ | FFmpegMetadata postprocessor |
 | 7 | Collision-safe filenames — `title [1080p] (1).mp4` | ✅ | Resolution tag is the *actual* downloaded height, not the cap. Only finished files count as collisions; `.part` / `.fNNN` intermediates are ignored so interrupted downloads resume instead of being renamed |
 | 8 | Single network round-trip per video download | ✅ | Metadata from the format-selection pass is reused for the download (same path as `--load-info-json`) |
-| 9 | Clip download (start–end timestamp) | ✅ | Console: "Clip" tick box on single videos, times as `mm:ss` / `h:mm:ss` / `90` / `1m30s`; either side may be empty. yt-dlp hands the range to FFmpeg, which fetches only that section (cuts land on keyframes, so a second or two of slack is normal). File is tagged `[1080p 12.00-15.00]` |
+| 9 | Clip download (start–end timestamp) | ✅ | Console: "Clip" tick box on single videos, times as `mm:ss` / `h:mm:ss` / `90` / `1m30s`; either side may be empty. yt-dlp hands the range to FFmpeg, which fetches only that section (cuts land on keyframes, so a second or two of slack is normal). File is tagged `[1080p clip 12.00-15.00]`, so it never overwrites the full video or another section |
 | 10 | Format inspection | ✅ | `YtUnified.py --list-formats URL` |
 | 11 | Subtitle handling | ❌ | Dropped; Whisper is the better path for caption harvesting |
 | 12 | No-FFmpeg fallback (pre-merged single file) | ⚠️ | Still present but YouTube now rarely serves pre-merged formats; a clear error is shown instead of a cryptic yt-dlp message |
