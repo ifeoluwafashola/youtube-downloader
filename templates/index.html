@@ -58,10 +58,14 @@
   .entries label:last-child { border-bottom:0; }
   .entries label.hidden { display:none; }
   .entries .idx { width:3em; color:var(--muted); text-align:right; }
-  table { width:100%; border-collapse:collapse; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  /* Column widths are set on the header so the detail row (colspan) can never squeeze the summary row. */
+  th.c-id { width:36px; } th.c-type { width:72px; } th.c-quality { width:140px; } th.c-status { width:110px; } th.c-prog { width:200px; } th.c-actions { width:250px; }
+  td[data-cell="actions"] { white-space:nowrap; text-align:right; }
+  td[data-cell="actions"] .small { margin-left:4px; }
   th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
-  td.title { max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  td.title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   td.title small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; color:#fff; background:var(--skip); }
   .badge.SUCCESS { background:var(--ok); } .badge.PARTIAL { background:var(--warn); } .badge.FAILED { background:var(--bad); }
@@ -70,14 +74,15 @@
   .bar > div { height:100%; background:var(--accent); transition:width .4s; }
   .bar.indeterminate > div { width:35%; animation:slide 1.2s infinite linear; }
   @keyframes slide { from { transform:translateX(-100%);} to { transform:translateX(300%);} }
-  .prog small { display:block; color:var(--muted); font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .prog small { display:block; color:var(--muted); font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .msg { padding:8px 12px; border-radius:6px; margin-top:10px; font-size:13px; }
   .msg.err { background:#ffebe9; color:var(--bad); } .msg.ok { background:#dafbe1; color:var(--ok); } .msg.note { background:#fff8c5; color:var(--warn); }
   pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
   details summary { cursor:pointer; color:var(--accent); font-size:12px; }
   details summary button { margin-left:6px; vertical-align:middle; }
   tbody.job > tr:first-child > td { border-bottom:0; }
-  tbody.job > tr.detail > td { padding-top:0; }
+  tbody.job > tr.detail > td { padding-top:0; overflow:visible; white-space:normal; }
+  tr.detail pre.out, tr.detail .files { width:100%; box-sizing:border-box; }
   tbody.job:last-child > tr.detail > td, tbody.job:last-child > tr:first-child > td { border-bottom:0; }
   tr.detail pre.out { max-height:240px; white-space:pre-wrap; word-break:break-all; user-select:text; margin-top:6px; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
@@ -252,7 +257,7 @@
     </div>
     <div style="overflow:auto; margin-top:10px">
       <table>
-        <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Quality</th><th>Status</th><th>Progress</th><th></th></tr></thead>
+        <thead><tr><th class="c-id">#</th><th>Title</th><th class="c-type">Type</th><th class="c-quality">Quality</th><th class="c-status">Status</th><th class="c-prog">Progress</th><th class="c-actions"></th></tr></thead>
         <tbody id="jobs"></tbody>
       </table>
       <div id="olderRow" class="hidden" style="text-align:center; padding:10px">
