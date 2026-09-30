@@ -13,7 +13,6 @@
   header .inner { max-width:1100px; margin:0 auto; padding:10px 20px; display:flex; gap:8px; align-items:center; }
   header h1 { font-size:18px; margin:0 auto 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   header button { white-space:nowrap; }
-  header button[aria-expanded="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
   .settings { display:grid; grid-template-columns:auto 1fr; gap:10px 16px; align-items:center; }
   .settings .label { color:var(--muted); font-size:13px; white-space:nowrap; }
   .settings .full { grid-column:1 / -1; }
@@ -95,6 +94,12 @@
   .files .miss { color:var(--bad); font-size:11px; }
   .badge.INTERRUPTED { background:var(--warn); } .badge.CANCELLED { background:var(--skip); }
   td .small + .small { margin-left:4px; }
+  dialog.panel { border:1px solid var(--line); border-radius:12px; padding:0; width:min(760px, 94vw); max-height:88vh; background:var(--card); color:var(--text); box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  dialog.panel::backdrop { background:rgba(20,24,30,.45); }
+  dialog.panel .dlg-head { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); z-index:1; }
+  dialog.panel .dlg-head h2 { margin:0; font-size:16px; }
+  dialog.panel .dlg-body { padding:16px 20px 20px; overflow:auto; max-height:calc(88vh - 56px); }
+  dialog.panel { display:none; } dialog.panel[open] { display:flex; flex-direction:column; }
   dialog#player { border:0; border-radius:10px; padding:0; max-width:min(960px,94vw); width:100%; background:#111; color:#fff; box-shadow:0 20px 60px rgba(0,0,0,.5); }
   dialog#player::backdrop { background:rgba(0,0,0,.6); }
   dialog#player .bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1c1c1c; }
@@ -109,8 +114,8 @@
   <div class="inner">
     <h1>YouTube Downloader</h1>
     <button id="btnUpdate" title="Get the latest version of this program and of yt-dlp (the part that talks to YouTube)">Update</button>
-    <button id="btnHelp" aria-expanded="false" aria-controls="helpPanel" title="How to use this, and what to do when something goes wrong">Help</button>
-    <button id="btnSettings" aria-expanded="false" aria-controls="settingsPanel" title="Download folder, versions, where things are stored">Settings</button>
+    <button id="btnHelp" title="How to use this, and what to do when something goes wrong">Help</button>
+    <button id="btnSettings" title="Download folder, versions, where things are stored">Settings</button>
   </div>
 </header>
 
@@ -124,90 +129,6 @@
       <div class="row">
         <button class="primary small" id="btnTourStart">Take the tour</button>
         <button class="small" id="btnTourSkip">No thanks</button>
-      </div>
-    </div>
-  </section>
-
-  <section id="helpPanel" class="card hidden">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0">Help</h2>
-      <button class="small" id="btnTourAgain">Show me around</button>
-    </div>
-    <div class="help">
-      <section>
-        <h3>Getting started</h3>
-        <ol>
-          <li>Paste a YouTube link in the box at the top and click <b>Inspect</b>. The title and details appear so you can check it is the right thing.</li>
-          <li>Choose <b>Video</b> and a quality, or <b>Audio only</b> and a format (MP3 for listening, WAV for editing, <i>Original</i> for the smallest file).</li>
-          <li>Click <b>Add to queue</b>. Downloads run one after another; you can keep adding.</li>
-        </ol>
-      </section>
-      <section>
-        <h3>Playlists</h3>
-        <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones. Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
-        <p>A link that contains both a video and a playlist (<code>watch?v=…&amp;list=…</code>) asks which one you mean.</p>
-      </section>
-      <section>
-        <h3>Part of a video</h3>
-        <p>Tick <b>Clip</b> and enter from/to times such as <code>12:00</code> and <code>15:00</code>. Only that section is downloaded. Cuts land on the nearest keyframe, so allow a second or two either side.</p>
-      </section>
-      <section>
-        <h3>Several links at once</h3>
-        <p>Open <b>Add several links at once</b>, paste one link per line, choose the settings once, and add them all.</p>
-      </section>
-      <section>
-        <h3>Where files go</h3>
-        <p>Into <span id="helpFolder" class="mono"></span>. Change it under <b>Settings</b>. Each finished item shows its files with <b>Play</b> (in this page), <b>Open</b> (your media player) and <b>Show in folder</b>.</p>
-        <p>MKV files cannot play in the page - use Open. Prefer MP4 unless a player struggles with 4K.</p>
-      </section>
-      <section>
-        <h3>History</h3>
-        <p>The list is kept across restarts. If you delete a file from disk it is marked here and <b>Download again</b> fetches it once more. <b>Clear history</b> only clears this list - files are never deleted.</p>
-      </section>
-      <section>
-        <h3>When downloads stop working</h3>
-        <p>YouTube changes things every few weeks. If downloads suddenly fail (403, "not a bot", "format not available"), click <b>Update</b> at the top, then <b>Restart now</b>. A blue banner appears here when an update is available.</p>
-      </section>
-      <section>
-        <h3>Age-restricted or members-only videos</h3>
-        <p>These need your YouTube login. Start the console with <code>Start.bat --cookies-from-browser firefox</code> (Chrome and Edge do not allow this on Windows). See TROUBLESHOOTING.md in the program folder for details.</p>
-      </section>
-    </div>
-  </section>
-
-  <section id="settingsPanel" class="card hidden">
-    <h2>Settings</h2>
-    <div class="settings">
-      <span class="label">Download folder</span>
-      <div class="row" style="gap:6px">
-        <input type="text" id="folderInput" style="font-family:ui-monospace,Consolas,monospace; font-size:12px; flex:1; min-width:240px">
-        <button class="small" id="btnBrowse" title="Pick a folder with the system dialog">Browse…</button>
-        <button class="small primary" id="btnFolderSave">Save</button>
-        <button class="small" id="btnOpen" title="Open the download folder">Open folder</button>
-      </div>
-      <span class="label"></span>
-      <div class="hint">Currently saving to <span id="outdir" style="font-family:ui-monospace,Consolas,monospace"></span>. Applies to downloads started after you click Save.</div>
-      <span class="label">Address / port</span>
-      <div class="row" style="gap:6px">
-        <span class="mono">http://127.0.0.1:</span>
-        <input type="number" id="portInput" min="1024" max="65535" style="width:7em">
-        <button class="small primary" id="btnPortSave">Save</button>
-        <span class="hint" id="portHint">Only change this if another program already uses the port. Takes effect after a restart.</span>
-      </div>
-      <span class="label">Updates</span>
-      <div class="row" style="gap:6px">
-        <button class="small" id="btnCheckUpdate">Check now</button>
-        <span class="hint" id="updateStatus">Checked automatically at start and every 6 hours.</span>
-      </div>
-      <div class="full" style="border-top:1px solid var(--line); margin-top:6px; padding-top:12px">
-        <b style="font-size:13px">About</b>
-        <dl class="about" style="margin:8px 0 0">
-          <dt>Program version</dt><dd id="appver">…</dd>
-          <dt>yt-dlp</dt><dd id="ver">…</dd>
-          <dt>FFmpeg</dt><dd id="ffmpeg">…</dd>
-          <dt>History &amp; settings</dt><dd id="dataDir" class="mono"></dd>
-        </dl>
-        <div class="hint" style="margin-top:6px">History and settings live in your user profile and survive reinstalling or deleting the program folder.</div>
       </div>
     </div>
   </section>
@@ -350,6 +271,97 @@
   </dialog>
 
 </main>
+
+<dialog id="helpDlg" class="panel">
+    <div class="dlg-head">
+      <h2>Help</h2>
+      <span class="row"><button class="small" id="btnTourAgain">Show me around</button><button class="small" data-close>Close</button></span>
+    </div>
+  <div class="dlg-body">
+    <div class="help">
+      <section>
+        <h3>Getting started</h3>
+        <ol>
+          <li>Paste a YouTube link in the box at the top and click <b>Inspect</b>. The title and details appear so you can check it is the right thing.</li>
+          <li>Choose <b>Video</b> and a quality, or <b>Audio only</b> and a format (MP3 for listening, WAV for editing, <i>Original</i> for the smallest file).</li>
+          <li>Click <b>Add to queue</b>. Downloads run one after another; you can keep adding.</li>
+        </ol>
+      </section>
+      <section>
+        <h3>Playlists</h3>
+        <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones. Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
+        <p>A link that contains both a video and a playlist (<code>watch?v=…&amp;list=…</code>) asks which one you mean.</p>
+      </section>
+      <section>
+        <h3>Part of a video</h3>
+        <p>Tick <b>Clip</b> and enter from/to times such as <code>12:00</code> and <code>15:00</code>. Only that section is downloaded. Cuts land on the nearest keyframe, so allow a second or two either side.</p>
+      </section>
+      <section>
+        <h3>Several links at once</h3>
+        <p>Open <b>Add several links at once</b>, paste one link per line, choose the settings once, and add them all.</p>
+      </section>
+      <section>
+        <h3>Where files go</h3>
+        <p>Into <span id="helpFolder" class="mono"></span>. Change it under <b>Settings</b>. Each finished item shows its files with <b>Play</b> (in this page), <b>Open</b> (your media player) and <b>Show in folder</b>.</p>
+        <p>MKV files cannot play in the page - use Open. Prefer MP4 unless a player struggles with 4K.</p>
+      </section>
+      <section>
+        <h3>History</h3>
+        <p>The list is kept across restarts. If you delete a file from disk it is marked here and <b>Download again</b> fetches it once more. <b>Clear history</b> only clears this list - files are never deleted.</p>
+      </section>
+      <section>
+        <h3>When downloads stop working</h3>
+        <p>YouTube changes things every few weeks. If downloads suddenly fail (403, "not a bot", "format not available"), click <b>Update</b> at the top, then <b>Restart now</b>. A blue banner appears here when an update is available.</p>
+      </section>
+      <section>
+        <h3>Age-restricted or members-only videos</h3>
+        <p>These need your YouTube login. Start the console with <code>Start.bat --cookies-from-browser firefox</code> (Chrome and Edge do not allow this on Windows). See TROUBLESHOOTING.md in the program folder for details.</p>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="settingsDlg" class="panel">
+    <div class="dlg-head">
+      <h2>Settings</h2>
+      <button class="small" data-close>Close</button>
+    </div>
+  <div class="dlg-body">
+    <div class="settings">
+      <span class="label">Download folder</span>
+      <div class="row" style="gap:6px">
+        <input type="text" id="folderInput" style="font-family:ui-monospace,Consolas,monospace; font-size:12px; flex:1; min-width:240px">
+        <button class="small" id="btnBrowse" title="Pick a folder with the system dialog">Browse…</button>
+        <button class="small primary" id="btnFolderSave">Save</button>
+        <button class="small" id="btnOpen" title="Open the download folder">Open folder</button>
+      </div>
+      <span class="label"></span>
+      <div class="hint">Currently saving to <span id="outdir" style="font-family:ui-monospace,Consolas,monospace"></span>. Applies to downloads started after you click Save.</div>
+      <span class="label">Address / port</span>
+      <div class="row" style="gap:6px">
+        <span class="mono">http://127.0.0.1:</span>
+        <input type="number" id="portInput" min="1024" max="65535" style="width:7em">
+        <button class="small primary" id="btnPortSave">Save</button>
+        <span class="hint" id="portHint">Only change this if another program already uses the port. Takes effect after a restart.</span>
+      </div>
+      <span class="label">Updates</span>
+      <div class="row" style="gap:6px">
+        <button class="small" id="btnCheckUpdate">Check now</button>
+        <span class="hint" id="updateStatus">Checked automatically at start and every 6 hours.</span>
+      </div>
+      <div class="full" style="border-top:1px solid var(--line); margin-top:6px; padding-top:12px">
+        <b style="font-size:13px">About</b>
+        <dl class="about" style="margin:8px 0 0">
+          <dt>Program version</dt><dd id="appver">…</dd>
+          <dt>yt-dlp</dt><dd id="ver">…</dd>
+          <dt>FFmpeg</dt><dd id="ffmpeg">…</dd>
+          <dt>History &amp; settings</dt><dd id="dataDir" class="mono"></dd>
+        </dl>
+        <div class="hint" style="margin-top:6px">History and settings live in your user profile and survive reinstalling or deleting the program folder.</div>
+      </div>
+    </div>
+  </div>
+</dialog>
 
 <div id="tour" class="hidden">
   <div id="tourHole"></div>
@@ -794,18 +806,16 @@
   $('quality').addEventListener('change', () => { const t = typeOf('type'); prefs.set('single.' + t, $('quality').value); updateHint($('quality'), t); });
   $('clip').onchange = () => show($('clipFields'), $('clip').checked);
 
-  // Header panels (Help, Settings): one open at a time.
-  function togglePanel(panelId, btnId, force) {
-    const panel = $(panelId), btn = $(btnId);
-    const open = force !== undefined ? force : panel.classList.contains('hidden');
-    for (const [p, b] of [['helpPanel', 'btnHelp'], ['settingsPanel', 'btnSettings']]) {
-      const on = open && p === panelId;
-      show($(p), on); $(b).setAttribute('aria-expanded', String(on));
-    }
-    if (open) panel.scrollIntoView({ block: 'nearest' });
+  // Help and Settings are dialogs: the page behind stays exactly as it was.
+  function openDlg(id) { const d = $(id); if (!d.open) d.showModal(); }
+  function closeDlg(id) { const d = $(id); if (d.open) d.close(); }
+  $('btnSettings').onclick = () => openDlg('settingsDlg');
+  $('btnHelp').onclick = () => openDlg('helpDlg');
+  for (const id of ['helpDlg', 'settingsDlg']) {
+    const d = $(id);
+    d.querySelectorAll('[data-close]').forEach(b => b.onclick = () => d.close());
+    d.addEventListener('click', e => { if (e.target === d) d.close(); });   // click on the backdrop
   }
-  $('btnSettings').onclick = () => togglePanel('settingsPanel', 'btnSettings');
-  $('btnHelp').onclick = () => togglePanel('helpPanel', 'btnHelp');
 
   // ---- First visit: welcome card + optional spotlight tour --------------------
   const TOUR = [
@@ -842,8 +852,8 @@
   $('tourClose').onclick = tourEnd;
   document.addEventListener('keydown', e => { if (tourIndex >= 0 && e.key === 'Escape') tourEnd(); });
   window.addEventListener('resize', () => { if (tourIndex >= 0) tourShow(tourIndex); });
-  $('btnTourStart').onclick = () => { togglePanel('helpPanel', 'btnHelp', false); tourShow(0); };
-  $('btnTourAgain').onclick = () => { togglePanel('helpPanel', 'btnHelp', false); tourShow(0); };
+  $('btnTourStart').onclick = () => tourShow(0);
+  $('btnTourAgain').onclick = () => { closeDlg('helpDlg'); tourShow(0); };
   $('btnTourSkip').onclick = () => { prefs.set('tourDone', '1'); show($('welcome'), false); };
   if (!prefs.get('tourDone')) show($('welcome'), true);
 
