@@ -329,13 +329,18 @@
         <h3>Getting started</h3>
         <ol>
           <li>Paste a YouTube link in the box at the top and click <b>Inspect</b>. The title and details appear so you can check it is the right thing.</li>
-          <li>Choose <b>Video</b> and a quality, or <b>Audio only</b> and a format (MP3 for listening, WAV for editing, <i>Original</i> for the smallest file).</li>
-          <li>Click <b>Add to queue</b>. Downloads run one after another; you can keep adding.</li>
+          <li>Choose <b>Video</b> and a quality, or <b>Audio only</b> and a format. For a single video each option shows the download size; qualities the video does not have are greyed out.</li>
+          <li>Click <b>Add to queue</b>. Downloads run one after another; you can keep adding. A running download can be <b>Cancelled</b>.</li>
         </ol>
       </section>
       <section>
+        <h3>Video and audio formats</h3>
+        <p><b>MP4</b> plays everywhere, including in this page. <b>MKV</b> is the better container for 4K, VP9 or AV1 video but does not play in the page - use Open.</p>
+        <p><b>MP3</b> at 320 kbps is the default for listening (192 / 128 for smaller files). <b>WAV</b> is uncompressed - about 10 MB a minute at 16-bit, 15 MB at 24-bit - for editing or DAW import; YouTube audio is lossy, so WAV cannot add detail, only headroom. <b>Original</b> keeps YouTube's own stream (usually .opus or .m4a): smallest file, no re-encoding.</p>
+      </section>
+      <section>
         <h3>Playlists</h3>
-        <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones. Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
+        <p>Paste a playlist link and Inspect lists every video. Download <b>All</b>, a <b>Range</b> such as 5–20, or <b>Pick</b> individual ones (type in the filter box to find them in a long list). Each playlist gets its own folder. Running the same playlist again only fetches what is new.</p>
         <p>Files are numbered by their position in the playlist (<code>01 - Intro.mp4</code>, <code>02 - Lesson one.mp4</code>), so a course stays in order in any folder. Untick <b>Number files</b> for plain titles.</p>
         <p>A link that contains both a video and a playlist (<code>watch?v=…&amp;list=…</code>) asks which one you mean.</p>
       </section>
@@ -354,11 +359,17 @@
       </section>
       <section>
         <h3>History</h3>
-        <p>The list is kept across restarts. If you delete a file from disk it is marked here and <b>Download again</b> fetches it once more. <b>Clear history</b> only clears this list - files are never deleted.</p>
+        <p>The list is kept across restarts. If you delete a file from disk it is marked here and <b>Download again</b> fetches it once more.</p>
+        <p><b>Remove</b> on a row takes that entry out of the list; tick the box in the confirmation if you also want its files deleted. <b>Clear history</b> clears the whole list and never touches files. Only the last 50 entries are shown; <b>Show older</b> reveals the rest.</p>
       </section>
       <section>
         <h3>When downloads stop working</h3>
-        <p>YouTube changes things every few weeks. If downloads suddenly fail (403, "not a bot", "format not available"), click <b>Update</b> at the top, then <b>Restart now</b>. A blue banner appears here when an update is available.</p>
+        <p>YouTube changes things every few weeks. If downloads suddenly fail (403, "not a bot", "format not available"), click <b>Update</b> at the top. It fetches the newest program and yt-dlp together; when it finishes, click <b>Restart now</b> and the console comes back on its own. A blue banner appears when an update is available; the app checks at start and every few hours.</p>
+        <p>If a tab is in the background when the queue finishes, a desktop notification tells you (allow it when the browser asks).</p>
+      </section>
+      <section>
+        <h3>Address and port</h3>
+        <p>The console lives at <code>http://127.0.0.1:8765</code> on this computer only. If another program already uses that port, change it under <b>Settings</b>; the choice is remembered. Starting the app while it is already running simply opens the existing window.</p>
       </section>
       <section>
         <h3>Age-restricted or members-only videos</h3>
