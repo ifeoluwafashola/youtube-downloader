@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>YouTube Downloader</title>
 <style>
-  :root { --bg:#f5f6f8; --card:#fff; --line:#dde1e6; --text:#1f2328; --muted:#656d76; --accent:#0969da;
+  :root { --page-max:1600px; --page-pad:24px; --bg:#f5f6f8; --card:#fff; --line:#dde1e6; --text:#1f2328; --muted:#656d76; --accent:#0969da;
           --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --skip:#6e7781; }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
   header { background:var(--card); border-bottom:1px solid var(--line); }
-  header .inner { max-width:1100px; margin:0 auto; padding:10px 20px; display:flex; gap:8px; align-items:center; }
+  header .inner { max-width:var(--page-max); margin:0 auto; padding:10px var(--page-pad); display:flex; gap:8px; align-items:center; }
   header h1 { font-size:18px; margin:0 auto 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   header button { white-space:nowrap; }
   .settings { display:grid; grid-template-columns:auto 1fr; gap:10px 16px; align-items:center; }
@@ -35,12 +35,12 @@
   #overlay .box { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px 32px; text-align:center; font-size:15px; box-shadow:0 12px 40px rgba(0,0,0,.12); }
   .spinner { width:28px; height:28px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; margin:0 auto 12px; animation:spin .9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  main { max-width:1100px; margin:20px auto; padding:0 20px; display:grid; gap:16px; }
+  main { max-width:var(--page-max); margin:20px auto; padding:0 var(--page-pad); display:grid; gap:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; }
   .card h2 { font-size:15px; margin:0 0 12px; }
   .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
   input[type=text], select, textarea { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:#fff; }
-  input[type=text] { flex:1; min-width:280px; }
+  input[type=text] { flex:1; min-width:280px; max-width:900px; }
   textarea { width:100%; min-height:80px; resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:13px; }
   button { font:inherit; padding:7px 14px; border:1px solid var(--line); border-radius:6px; background:#f6f8fa; cursor:pointer; }
   button:hover { background:#eef1f4; }
@@ -61,7 +61,7 @@
   /* Queue: a CSS grid. Fixed columns for metadata, the title takes what is left,
      and each job's files/log sit in a full-width area under its row. Content can
      never resize the columns, unlike a table. */
-  .jobs { margin-top:10px; --cols: 36px minmax(0,1fr) 64px 150px 100px 200px max-content; }
+  .jobs { margin-top:10px; --cols: 36px minmax(0,1fr) 64px 170px 100px 240px max-content; }
   .jobrow { display:grid; grid-template-columns:var(--cols); gap:0 10px; align-items:start; padding:8px 10px; border-bottom:1px solid var(--line); min-width:0; }
   .jobrow > div { min-width:0; overflow-wrap:anywhere; }
   .jobrow.head { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; padding-top:0; }
@@ -69,6 +69,7 @@
   .job { border-bottom:1px solid var(--line); }
   .job:last-child { border-bottom:0; }
   .job .detail { padding:0 10px 10px 56px; }          /* aligns with the title column */
+  .detail pre.out { max-height:320px; }
   .job .detail:empty, .job .detail.hidden { display:none; }
   .jt .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .jt small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -101,7 +102,7 @@
   .seg input:checked + span { font-weight:600; }
   .seg label:has(input:checked) { background:var(--accent); color:#fff; }
   .hint { font-size:12px; color:var(--muted); }
-  footer { max-width:1100px; margin:8px auto 24px; padding:0 20px; font-size:12px; color:var(--muted); }
+  footer { max-width:var(--page-max); margin:8px auto 24px; padding:0 var(--page-pad); font-size:12px; color:var(--muted); }
   .files { margin:6px 0 0; padding:0; list-style:none; font-size:12px; }
   .files li { display:flex; gap:8px; align-items:center; padding:2px 0; white-space:nowrap; }
   .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:70vw; }
