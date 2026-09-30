@@ -187,6 +187,18 @@
       </div>
       <span class="label"></span>
       <div class="hint">Currently saving to <span id="outdir" style="font-family:ui-monospace,Consolas,monospace"></span>. Applies to downloads started after you click Save.</div>
+      <span class="label">Address / port</span>
+      <div class="row" style="gap:6px">
+        <span class="mono">http://127.0.0.1:</span>
+        <input type="number" id="portInput" min="1024" max="65535" style="width:7em">
+        <button class="small primary" id="btnPortSave">Save</button>
+        <span class="hint" id="portHint">Only change this if another program already uses the port. Takes effect after a restart.</span>
+      </div>
+      <span class="label">Updates</span>
+      <div class="row" style="gap:6px">
+        <button class="small" id="btnCheckUpdate">Check now</button>
+        <span class="hint" id="updateStatus">Checked automatically at start and every 6 hours.</span>
+      </div>
       <div class="full" style="border-top:1px solid var(--line); margin-top:6px; padding-top:12px">
         <b style="font-size:13px">About</b>
         <dl class="about" style="margin:8px 0 0">
@@ -372,7 +384,7 @@
   let info = null;          // last inspect result
   let updateDone = false;   // hide the "available" banner after a successful in-page update
   let updateBusy = false;   // banner shows update progress / result instead of "available"
-  let currentFolder = '';
+  let currentFolder = '', currentPort = 0;
   let optionsLoaded = false;
   let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
   const HINTS = {
@@ -468,6 +480,14 @@
       }
       $('outdir').textContent = s.output_dir;
       $('emptyFolder').textContent = s.output_dir; $('helpFolder').textContent = s.output_dir;
+      const pi = $('portInput');
+      if (document.activeElement !== pi && (pi.value === '' || pi.value === String(currentPort))) pi.value = s.port;
+      currentPort = s.port;
+      if (u) {
+        const st = $('updateStatus');
+        if (u.error) { st.textContent = `Could not check (${u.error}). Last try ${u.checked || '—'}.`; st.style.color = 'var(--bad)'; }
+        else { st.textContent = `Last checked ${u.checked || '—'}: ${u.available ? 'update available' : 'up to date'}.`; st.style.color = ''; }
+      }
       // Keep the input in step with the server unless the user is editing it.
       const fi = $('folderInput');
       if (document.activeElement !== fi && (fi.value === '' || fi.value === currentFolder)) fi.value = s.output_dir;
@@ -836,6 +856,23 @@
       $('btnFolderSave').textContent = 'Saved'; setTimeout(() => $('btnFolderSave').textContent = 'Save', 1200);
     } catch (err) { alert(err.message); }
   };
+  $('btnPortSave').onclick = async () => {
+    try {
+      const r = await api('/api/settings', { method: 'POST', body: JSON.stringify({ port: $('portInput').value }) });
+      if (r.restart_needed) {
+        $('portHint').textContent = `Saved. The console will use port ${r.port} after a restart.`;
+        if (confirm(`Saved. Restart now so the console moves to http://127.0.0.1:${r.port}/ ? (Your browser will be sent to the new address.)`)) {
+          restartApp(`http://127.0.0.1:${r.port}/`);
+        }
+      } else { $('portHint').textContent = 'Saved.'; }
+    } catch (err) { alert(err.message); }
+  };
+  $('btnCheckUpdate').onclick = async () => {
+    $('btnCheckUpdate').disabled = true; $('updateStatus').textContent = 'Checking…';
+    try { await api('/api/check-update', { method: 'POST' }); await refresh(); }
+    catch (e) { $('updateStatus').textContent = e.message; }
+    finally { $('btnCheckUpdate').disabled = false; }
+  };
   $('btnBrowse').onclick = async () => {
     $('btnBrowse').disabled = true;
     try { const r = await api('/api/browse-folder', { method: 'POST' }); if (r.output_dir) $('folderInput').value = r.output_dir; }
@@ -899,7 +936,8 @@
 
   // Restart: ask the server to exit; the launcher starts it again. Poll until
   // it answers, then reload so the page matches the new code.
-  async function restartApp() {
+  async function restartApp(newBase) {
+    const base = newBase || '';
     const busy = [...document.querySelectorAll('.badge.DOWNLOADING, .badge.INSPECTING')].length > 0;
     if (busy && !confirm('A download is in progress. Restarting will stop it (you can download it again afterwards). Restart now?')) return;
     show($('overlay'), true); $('overlayText').textContent = 'Restarting…';
@@ -908,8 +946,8 @@
     await new Promise(r => setTimeout(r, 2500));
     for (;;) {
       try {
-        const res = await fetch('/api/state', { cache: 'no-store' });
-        if (res.ok) { location.reload(); return; }
+        const res = await fetch(base + '/api/state', { cache: 'no-store' });
+        if (res.ok) { if (base) location.href = base; else location.reload(); return; }
       } catch (e) { /* not up yet */ }
       if (Date.now() - started > 90000) {
         $('overlayText').textContent = 'The console did not come back. Check the black window, or run Start.bat again.';
@@ -918,7 +956,7 @@
       await new Promise(r => setTimeout(r, 1000));
     }
   }
-  $('btnRestart').onclick = restartApp;
+  $('btnRestart').onclick = () => restartApp();
 
   refresh();
   setInterval(refresh, 1000);

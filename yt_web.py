@@ -73,6 +73,7 @@ HISTORY_FILE = DATA_DIR / "history.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_LIMIT = 500
 RESTART_EXIT_CODE = 3            # launchers (Start.bat / start.sh) restart the console on this code
+DEFAULT_PORT = 8765
 
 
 def migrate_legacy_state():
@@ -203,8 +204,9 @@ def clip_label(start, end) -> str:
 class QueueWorker:
     """Owns the job list and a single background thread that drains it."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, port: int = DEFAULT_PORT):
         self.settings = settings
+        self.port = port
         self.jobs: list[Job] = []
         self._lock = threading.RLock()
         self._wake = threading.Event()
@@ -220,13 +222,44 @@ class QueueWorker:
         self.downloader = Downloader(settings, on_message=self._on_message, on_progress=self._on_progress)
         self._thread = threading.Thread(target=self._run, name="download-worker", daemon=True)
         self._thread.start()
-        threading.Thread(target=self._check_update, name="update-check", daemon=True).start()
+        threading.Thread(target=self._check_update_loop, name="update-check", daemon=True).start()
+
+    def _check_update_loop(self):
+        time.sleep(2)                    # let the server come up first
+        self._check_update()
+
+    def recheck_update(self):
+        """Run one check now (from the Settings 'Check now' button)."""
+        try:
+            info = check_all().to_dict()
+        except Exception as e:
+            info = {"available": False, "error": f"{type(e).__name__}: {e}"}
+        errors = [x.get("error") for x in (info.get("app", {}), info.get("ytdlp", {})) if isinstance(x, dict) and x.get("error")]
+        info["error"] = " / ".join(errors) if errors else info.get("error", "")
+        info["checked"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.update_info = info
+        return info
 
     def _check_update(self):
-        try:
-            self.update_info = check_all().to_dict()
-        except Exception as e:  # never let the check disturb the app
-            self.update_info = {"error": str(e), "available": False}
+        """
+        Check GitHub and PyPI shortly after start, retry a couple of times if the
+        network is not ready yet, then re-check every 6 hours while running.
+        Errors are kept in update_info so the page can show them.
+        """
+        delays = [3, 30, 120]            # first attempts: quick retries
+        while True:
+            try:
+                info = check_all().to_dict()
+            except Exception as e:      # never let the check disturb the app
+                info = {"available": False, "error": f"{type(e).__name__}: {e}"}
+            errors = [x.get("error") for x in (info.get("app", {}), info.get("ytdlp", {})) if isinstance(x, dict) and x.get("error")]
+            info["error"] = " / ".join(errors) if errors else info.get("error", "")
+            info["checked"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            self.update_info = info
+            if info["error"] and delays:
+                time.sleep(delays.pop(0))
+                continue
+            time.sleep(6 * 3600)
 
     # -- persistence ------------------------------------------------------------
 
@@ -483,6 +516,8 @@ def api_state():
             "output_dir": str(s.output_dir.resolve()),
             "data_dir": str(DATA_DIR),
             "pid": os.getpid(),
+            "port": worker.port,
+            "port_default": DEFAULT_PORT,
             "audio_formats": [{"value": k, "label": v[0]} for k, v in AUDIO_FORMATS.items()],
             "default_audio": DEFAULT_AUDIO,
             "containers": [{"value": k, "label": v} for k, v in CONTAINERS.items()],
@@ -657,16 +692,36 @@ def api_redownload(job_id: int):
 
 @app.post("/api/settings")
 def api_settings():
-    """Change the download folder. Applies to jobs that start after this call."""
+    """
+    Change settings. output_dir applies to jobs that start after this call;
+    port is saved and used on the next start (a restart is offered by the page).
+    """
     data = request.get_json(silent=True) or {}
-    path = (data.get("output_dir") or "").strip()
-    if not path:
-        return _bad("No folder given.")
-    try:
-        folder = worker.set_output_dir(path)
-    except OSError as e:
-        return _bad(f"Cannot use that folder: {e}", 422)
-    return jsonify({"ok": True, "output_dir": str(folder)})
+    out = {"ok": True}
+    if "output_dir" in data:
+        path = (data.get("output_dir") or "").strip()
+        if not path:
+            return _bad("No folder given.")
+        try:
+            out["output_dir"] = str(worker.set_output_dir(path))
+        except OSError as e:
+            return _bad(f"Cannot use that folder: {e}", 422)
+    if "port" in data:
+        try:
+            port = int(data["port"])
+        except (TypeError, ValueError):
+            return _bad("Port must be a number.")
+        if not 1024 <= port <= 65535:
+            return _bad("Port must be between 1024 and 65535.")
+        save_settings({"port": port})
+        out["port"] = port
+        out["restart_needed"] = port != worker.port
+    return jsonify(out)
+
+
+@app.post("/api/check-update")
+def api_check_update():
+    return jsonify(worker.recheck_update())
 
 
 @app.post("/api/browse-folder")
@@ -774,7 +829,7 @@ def api_log():
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="yt_web.py", description="Local web console for the YouTube downloader.")
-    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--port", type=int, default=None, help=f"Port to listen on (default: last saved, else {DEFAULT_PORT})")
     p.add_argument("--output", default=None, help="Download folder (default: last used, else ./downloads)")
     p.add_argument("--cookies-from-browser", metavar="BROWSER")
     p.add_argument("--cookies-file", metavar="PATH")
@@ -804,10 +859,24 @@ def main():
     )
     settings.output_dir.mkdir(parents=True, exist_ok=True)
 
-    ff = ensure_ffmpeg(fetch=not args.no_ffmpeg, on_message=print)
-    worker = QueueWorker(settings)
+    port = args.port or int(saved.get("port") or DEFAULT_PORT)
+    running = _already_running(port)
+    if running:
+        # Someone double-clicked Start.bat twice. Do not fail: just open the copy that is up.
+        url = f"http://127.0.0.1:{port}/"
+        print(f"The console is already running at {url} - opening it.")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return
+    free = _first_free_port(port)
+    if free != port:
+        print(f"Port {port} is in use by another program; using {free} instead.")
+        port = free
 
-    url = f"http://127.0.0.1:{args.port}/"
+    ff = ensure_ffmpeg(fetch=not args.no_ffmpeg, on_message=print)
+    worker = QueueWorker(settings, port=port)
+
+    url = f"http://127.0.0.1:{port}/"
     print(f"YouTube Downloader web console  |  yt-dlp {ytdlp_version()}")
     print(f"Downloads : {settings.output_dir.resolve()}")
     print(f"History   : {DATA_DIR}")
@@ -832,26 +901,46 @@ def main():
         flask.cli.show_server_banner = lambda *_a, **_k: None
     except Exception:
         pass
-    _wait_for_port("127.0.0.1", args.port)
-    app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True, use_reloader=False)
+    app.run(host="127.0.0.1", port=port, debug=False, threaded=True, use_reloader=False)
 
 
-def _wait_for_port(host: str, port: int, timeout: float = 15.0):
-    """After a restart the previous process may still hold the port for a moment."""
+def _port_free(port: int) -> bool:
     import socket
-    deadline = time.time() + timeout
-    while True:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind((host, port))
-                return
-            except OSError:
-                if time.time() > deadline:
-                    print(f"Port {port} is still in use. Is another copy of the console running? "
-                          f"Close it, or start with --port {port + 1}.")
-                    return
-                time.sleep(0.3)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def _already_running(port: int, wait: float = 6.0) -> bool:
+    """
+    True if *this app* already answers on the port. After a restart the old
+    process may hold the port for a moment, so wait briefly for it to let go
+    before concluding that a live copy is there.
+    """
+    import urllib.request
+    deadline = time.time() + wait
+    while not _port_free(port):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=1) as resp:
+                if b'"ytdlp_version"' in resp.read(4000):
+                    return True
+        except Exception:
+            pass                          # something holds the port but is not (yet) our app
+        if time.time() > deadline:
+            return False
+        time.sleep(0.3)
+    return False
+
+
+def _first_free_port(start: int) -> int:
+    for port in range(start, start + 20):
+        if _port_free(port):
+            return port
+    return start
 
 
 if __name__ == "__main__":
