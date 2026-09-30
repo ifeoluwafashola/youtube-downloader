@@ -58,7 +58,9 @@
   .entries label:last-child { border-bottom:0; }
   .entries label.hidden { display:none; }
   .entries .idx { width:3em; color:var(--muted); text-align:right; }
-  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .tablewrap { margin-top:10px; overflow-x:auto; max-width:100%; }
+  table { width:100%; min-width:720px; border-collapse:collapse; table-layout:fixed; }
+  td { overflow-wrap:anywhere; }
   /* Column widths are set on the header so the detail row (colspan) can never squeeze the summary row. */
   th.c-id { width:36px; } th.c-type { width:72px; } th.c-quality { width:140px; } th.c-status { width:110px; } th.c-prog { width:200px; } th.c-actions { width:250px; }
   td[data-cell="actions"] { white-space:nowrap; text-align:right; }
@@ -82,7 +84,9 @@
   details summary button { margin-left:6px; vertical-align:middle; }
   tbody.job > tr:first-child > td { border-bottom:0; }
   tbody.job > tr.detail > td { padding-top:0; overflow:visible; white-space:normal; }
-  tr.detail pre.out, tr.detail .files { width:100%; box-sizing:border-box; }
+  tr.detail pre.out, tr.detail .files { width:100%; max-width:100%; box-sizing:border-box; }
+  tr.detail pre.out { overflow-wrap:anywhere; }
+  html, body { overflow-x:hidden; }
   tbody.job:last-child > tr.detail > td, tbody.job:last-child > tr:first-child > td { border-bottom:0; }
   tr.detail pre.out { max-height:240px; white-space:pre-wrap; word-break:break-all; user-select:text; margin-top:6px; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
@@ -255,7 +259,7 @@
         <button id="btnClear" class="small" title="Remove all finished jobs from this list (files are not deleted)">Clear history</button>
       </div>
     </div>
-    <div style="overflow:auto; margin-top:10px">
+    <div class="tablewrap">
       <table>
         <thead><tr><th class="c-id">#</th><th>Title</th><th class="c-type">Type</th><th class="c-quality">Quality</th><th class="c-status">Status</th><th class="c-prog">Progress</th><th class="c-actions"></th></tr></thead>
         <tbody id="jobs"></tbody>

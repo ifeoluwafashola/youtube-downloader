@@ -507,7 +507,12 @@ def _reject_cross_site():
 
 @app.get("/")
 def index():
-    return render_template("index.html")
+    # Never cache the page: after an update the browser must get the new UI,
+    # not a copy it kept from before the restart.
+    resp = app.make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @app.get("/api/state")
