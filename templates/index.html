@@ -767,7 +767,15 @@
   async function inspect() {
     const url = $('url').value.trim();
     if (!url) return;
-    const noplaylist = !$('mixed').classList.contains('hidden') && document.querySelector('input[name=mixed]:checked').value === 'video';
+    // A watch?v=...&list=... link can mean the video or the playlist. Default to
+    // the video (what a pasted watch link almost always means); the radio
+    // buttons that appear afterwards let the user switch and re-inspect.
+    let params;
+    try { params = new URL(url).searchParams; } catch (e) { params = new URLSearchParams(); }
+    const mixedLink = params.has('list') && (params.has('v') || /youtu\.be\//.test(url));
+    const radioShown = !$('mixed').classList.contains('hidden');
+    const noplaylist = mixedLink && (!radioShown || document.querySelector('input[name=mixed]:checked').value === 'video');
+    if (mixedLink && !radioShown) document.querySelector('input[name=mixed][value=video]').checked = true;
     msg($('inspectMsg'), 'Inspecting…', 'note');
     $('btnInspect').disabled = true;
     try {
