@@ -200,9 +200,17 @@
     </div>
   </section>
 
-  <div id="updateBanner" class="card hidden" style="border-color:var(--accent); display:flex; gap:12px; align-items:center">
-    <span><b>An update is available</b> <span class="muted" id="updateVersions"></span></span>
-    <button class="primary small" id="btnUpdateBanner">Update now</button>
+  <div id="updateBanner" class="card hidden" style="border-color:var(--accent)">
+    <div class="row" style="justify-content:space-between">
+      <span id="updateBannerText"><b>An update is available</b> <span class="muted" id="updateVersions"></span></span>
+      <span class="row">
+        <button class="primary small" id="btnUpdateBanner">Update now</button>
+        <button class="primary small hidden" id="btnRestart">Restart now</button>
+        <button class="small hidden" id="btnUpdateDismiss">Dismiss</button>
+      </span>
+    </div>
+    <div id="restartNote" class="hint hidden" style="margin-top:6px">Takes a few seconds. Queued downloads continue afterwards; a download in progress is stopped and can be downloaded again.</div>
+    <details id="updateDetails" class="hidden" style="margin-top:8px"><summary>Details</summary><pre id="updateText" class="out"></pre></details>
   </div>
 
   <div id="ffmpegWarn" class="card hidden" style="border-color:var(--bad)">
@@ -329,15 +337,6 @@
     <video id="playerVideo" controls autoplay playsinline></video>
   </dialog>
 
-  <div id="updateOut" class="card hidden">
-    <h2>Update</h2>
-    <div id="updateMsg"></div>
-    <div class="row hidden" id="restartRow" style="margin-top:10px">
-      <button class="primary" id="btnRestart">Restart now</button>
-      <span class="hint">Takes a few seconds. Queued downloads continue afterwards; a download in progress is stopped and can be downloaded again.</span>
-    </div>
-    <pre id="updateText" class="out"></pre>
-  </div>
 </main>
 
 <div id="tour" class="hidden">
@@ -371,7 +370,8 @@
   const msg = (el, text, cls) => { el.innerHTML = text ? `<div class="msg ${cls}">${esc(text)}</div>` : ''; };
 
   let info = null;          // last inspect result
-  let updateDone = false;   // hide the banner after a successful in-page update
+  let updateDone = false;   // hide the "available" banner after a successful in-page update
+  let updateBusy = false;   // banner shows update progress / result instead of "available"
   let currentFolder = '';
   let optionsLoaded = false;
   let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
@@ -450,8 +450,9 @@
       $('ver').textContent = s.ytdlp_version;
       $('appver').textContent = s.app_version;
       const u = s.update;
-      show($('updateBanner'), !!(u && u.available && !updateDone));
-      if (u && u.available) {
+      // The banner is owned by runUpdate() while an update is running or has just finished.
+      if (!updateBusy) show($('updateBanner'), !!(u && u.available && !updateDone));
+      if (u && u.available && !updateBusy) {
         const what = [];
         if (u.app && u.app.available) what.push(`program ${u.app.local || 'unknown'} → ${u.app.remote}`);
         if (u.ytdlp && u.ytdlp.available) what.push(`yt-dlp ${u.ytdlp.installed} → ${u.ytdlp.latest}`);
@@ -859,24 +860,40 @@
     el.textContent = r.lines.length ? r.lines.join('\n') : '(log is empty)';
     show(el, true);
   };
+  // Update feedback lives in the banner right under the header - where the
+  // Update button is - not somewhere further down the page.
+  function bannerState(text, cls, { restart = false, dismiss = false, details = '' } = {}) {
+    show($('updateBanner'), true);
+    $('updateBanner').style.borderColor = cls === 'err' ? 'var(--bad)' : cls === 'ok' ? 'var(--ok)' : 'var(--accent)';
+    $('updateBannerText').innerHTML = text;
+    show($('btnUpdateBanner'), false);
+    show($('btnRestart'), restart); show($('restartNote'), restart);
+    show($('btnUpdateDismiss'), dismiss);
+    show($('updateDetails'), !!details); $('updateText').textContent = details;
+    $('updateBanner').scrollIntoView({ block: 'nearest' });
+  }
   async function runUpdate() {
-    if (!confirm('Update now? This fetches the latest version of the program and of yt-dlp. Downloads in progress will continue; restart the console afterwards.')) return;
-    show($('updateOut'), true);
-    msg($('updateMsg'), 'Updating… this can take a minute.', 'note');
-    $('updateText').textContent = '';
-    for (const b of [$('btnUpdate'), $('btnUpdateBanner')]) b.disabled = true;
+    if (!confirm('Update now? This fetches the latest version of the program and of yt-dlp. Downloads in progress will continue; you can restart afterwards.')) return;
+    updateBusy = true;
+    bannerState('<b>Updating…</b> <span class="muted">this can take a minute</span>', 'note');
+    $('btnUpdate').disabled = true;
     try {
       const r = await api('/api/update', { method: 'POST' });
-      if (r.ok && r.changed) { updateDone = true; msg($('updateMsg'), r.message + ' ' + r.note, 'ok'); show($('restartRow'), true); }
-      else if (r.ok) msg($('updateMsg'), r.message, 'ok');
-      else msg($('updateMsg'), r.message, 'err');
       const detail = [...(r.log || [])];
       if (r.app && r.app.output) detail.push(r.app.output);
       if (r.ytdlp && !r.ytdlp.ok && r.ytdlp.output) detail.push(r.ytdlp.output);
-      $('updateText').textContent = detail.filter(Boolean).join('\n');
-    } catch (e) { msg($('updateMsg'), e.message, 'err'); }
-    finally { for (const b of [$('btnUpdate'), $('btnUpdateBanner')]) b.disabled = false; }
+      if (r.ok && r.changed) {
+        updateDone = true;
+        bannerState(`<b>Update downloaded.</b> ${esc(r.message)} Restart to start using it.`, 'ok', { restart: true, details: detail.join('\n') });
+      } else if (r.ok) {
+        bannerState(`<b>Already up to date.</b> <span class="muted">${esc(r.message)}</span>`, 'ok', { dismiss: true, details: detail.join('\n') });
+      } else {
+        bannerState(`<b>Update failed.</b> ${esc(r.message)}`, 'err', { dismiss: true, details: detail.join('\n') });
+      }
+    } catch (e) { bannerState(`<b>Update failed.</b> ${esc(e.message)}`, 'err', { dismiss: true }); }
+    finally { $('btnUpdate').disabled = false; }
   }
+  $('btnUpdateDismiss').onclick = () => { updateBusy = false; show($('updateBanner'), false); show($('btnUpdateBanner'), true); };
   $('btnUpdate').onclick = runUpdate;
   $('btnUpdateBanner').onclick = runUpdate;
 
