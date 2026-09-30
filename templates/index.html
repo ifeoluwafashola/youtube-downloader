@@ -76,7 +76,10 @@
   pre.out { background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px; max-height:240px; overflow:auto; font-size:12px; white-space:pre-wrap; }
   details summary { cursor:pointer; color:var(--accent); font-size:12px; }
   details summary button { margin-left:6px; vertical-align:middle; }
-  td.title pre.out { max-height:200px; white-space:pre; user-select:text; }
+  tbody.job > tr:first-child > td { border-bottom:0; }
+  tbody.job > tr.detail > td { padding-top:0; }
+  tbody.job:last-child > tr.detail > td, tbody.job:last-child > tr:first-child > td { border-bottom:0; }
+  tr.detail pre.out { max-height:240px; white-space:pre-wrap; word-break:break-all; user-select:text; margin-top:6px; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
   .seg label { padding:6px 12px; cursor:pointer; background:#f6f8fa; border-right:1px solid var(--line); user-select:none; }
@@ -88,7 +91,7 @@
   footer { max-width:1100px; margin:8px auto 24px; padding:0 20px; font-size:12px; color:var(--muted); }
   .files { margin:6px 0 0; padding:0; list-style:none; font-size:12px; }
   .files li { display:flex; gap:8px; align-items:center; padding:2px 0; white-space:nowrap; }
-  .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .files .fname { overflow:hidden; text-overflow:ellipsis; max-width:70vw; }
   .files .fsize { color:var(--muted); min-width:60px; }
   .files .badge { font-weight:400; }
   .files li.missing .fname { text-decoration:line-through; color:var(--muted); }
@@ -553,16 +556,24 @@
       keep.add(id);
       let tr = document.getElementById(id);
       if (!tr) {
-        tr = document.createElement('tr');
+        // One <tbody> per job: a summary row, then a detail row that spans the
+        // full width for the file list and the log.
+        tr = document.createElement('tbody');
         tr.id = id;
-        tr.innerHTML = `<td data-cell="id">${j.id}</td>
-          <td class="title" data-cell-title><div data-cell="title"></div><div data-cell="files"></div>
-            <details class="log hidden"><summary>log <span class="logcount muted"></span> <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details></td>
+        tr.className = 'job';
+        tr.innerHTML = `<tr>
+          <td data-cell="id">${j.id}</td>
+          <td class="title" data-cell-title><div data-cell="title"></div></td>
           <td data-cell="kind"></td>
           <td data-cell="quality"></td>
           <td data-cell="status"></td>
           <td class="prog" data-cell="prog"></td>
-          <td data-cell="actions"></td>`;
+          <td data-cell="actions"></td>
+        </tr>
+        <tr class="detail"><td colspan="7">
+          <div data-cell="files"></div>
+          <details class="log hidden"><summary>log <span class="logcount muted"></span> <button class="small" data-copy="${j.id}" title="Copy log to clipboard">Copy</button></summary><pre class="out"></pre></details>
+        </td></tr>`;
         tb.appendChild(tr);
       }
       // Keep rows in queue order without recreating them.
@@ -606,6 +617,7 @@
     // panel is open AND the job is still running.
     const details = tr.querySelector('details.log');
     show(details, j.log_lines > 0);
+    show(tr.querySelector('tr.detail'), j.log_lines > 0 || (j.files || []).length > 0);
     details.querySelector('.logcount').textContent = j.log_lines ? `(${j.log_lines} lines)` : '';
     if (details.open && active) loadLog(j.id);
   }
@@ -686,7 +698,7 @@
   // <details> 'toggle' does not bubble, so listen in the capture phase on the table.
   $('jobs').addEventListener('toggle', e => {
     const d = e.target;
-    if (d.matches && d.matches('details.log') && d.open) loadLog(parseInt(d.closest('tr').id.slice(4), 10));
+    if (d.matches && d.matches('details.log') && d.open) loadLog(parseInt(d.closest('tbody.job').id.slice(4), 10));
   }, true);
 
   $('jobs').addEventListener('click', async e => {
