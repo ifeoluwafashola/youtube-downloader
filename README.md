@@ -53,7 +53,7 @@ guide at any time.
   24-bit, or the original stream with no conversion. Your last choice is
   remembered.
 - For playlists, download **All**, a **Range** (e.g. 5–20), or **Pick**
-  individual videos.
+  individual videos (with a title filter for long lists).
 - Links of the form `watch?v=...&list=...` ask whether you want just that video
   or the whole playlist.
 - Tick **Clip** on a single video to download only part of it, e.g. from
@@ -63,6 +63,8 @@ guide at any time.
   Finished items list every file with its size, a **Play** button (plays right
   in the page) and an **Open** button (opens it in your usual media player).
   **Show in folder** opens the folder the files were saved to.
+- If the tab is in the background when the queue finishes, a desktop
+  notification tells you (allow it when the browser asks).
 - The list is kept as history across restarts. If a file is later deleted from
   disk it is marked, and **Download again** fetches it once more.
 - **Settings** (top right) holds the download folder (**Browse…** opens a normal

@@ -72,6 +72,7 @@ DATA_DIR = user_data_dir()
 HISTORY_FILE = DATA_DIR / "history.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_LIMIT = 500
+POLL_ROWS = 50                   # rows included in the once-a-second poll; older ones load on demand
 RESTART_EXIT_CODE = 3            # launchers (Start.bat / start.sh) restart the console on this code
 DEFAULT_PORT = 8765
 
@@ -356,7 +357,8 @@ class QueueWorker:
             self.save()
         return removed
 
-    def snapshot(self) -> list[dict]:
+    def snapshot(self, limit: Optional[int] = None) -> tuple[list[dict], int]:
+        """Job dicts (most recent `limit`, or all) and the total number of jobs."""
         with self._lock:
             # Re-check file existence every 10 s so deleted files show up as missing.
             now = time.time()
@@ -365,11 +367,13 @@ class QueueWorker:
                 changed = [j.refresh_files() for j in self.jobs if j.status in TERMINAL]
                 if any(changed):
                     self._dirty = True
-            snap = [j.to_dict() for j in self.jobs]
+            total = len(self.jobs)
+            jobs = self.jobs if limit is None or total <= limit else self.jobs[-limit:]
+            snap = [j.to_dict() for j in jobs]
             dirty = self._dirty
         if dirty:
             self.save()
-        return snap
+        return snap, total
 
     def find(self, job_id: int) -> Optional[Job]:
         with self._lock:
@@ -510,8 +514,12 @@ def index():
 def api_state():
     s = worker.settings
     ff = ensure_ffmpeg(fetch=False)
+    limit = None if request.args.get("limit") == "all" else POLL_ROWS
+    jobs, total = worker.snapshot(limit)
     return jsonify({
-        "jobs": worker.snapshot(),
+        "jobs": jobs,
+        "jobs_total": total,
+        "jobs_hidden": total - len(jobs),
         "settings": {
             "output_dir": str(s.output_dir.resolve()),
             "data_dir": str(DATA_DIR),

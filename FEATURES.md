@@ -53,7 +53,7 @@ Tracks features, their implementation status, and notes.
 | 13 | Playlist vs video auto-detection | ✅ | Flat extraction (`extract_flat: in_playlist`); cookies applied during inspection |
 | 14 | `watch?v=…&list=…` disambiguation | ✅ | Console offers "Just this video / Whole playlist"; CLI `--no-playlist`; interactive prompt |
 | 15 | Playlist title listing before download | ✅ | |
-| 16 | Scope selection — all / range / specific videos | ✅ | `1,3,5-8` or `1 3 5-8`; validated against entry count |
+| 16 | Scope selection — all / range / specific videos | ✅ | `1,3,5-8` or `1 3 5-8`; validated against entry count. Pick list has a title filter; hidden rows keep their ticks, "Select shown" acts on the filtered rows, a counter shows selected / shown |
 | 17 | Download archive (skip already-downloaded items) | ✅ | Separate `archive_video.txt` / `archive_audio.txt` so an MP3 run does not hide a later video run |
 | 18 | Per-playlist subfolder | ✅ | `downloads/<playlist title>/<index> - <title>.<ext>`; playlist cover image no longer written |
 | 19 | Accurate outcome for playlists | ✅ | SUCCESS / PARTIAL / FAILED / SKIPPED based on completed count and yt-dlp return code — previously always SUCCESS |
@@ -91,6 +91,8 @@ Tracks features, their implementation status, and notes.
 | 34 | Bulk add (paste several links) | ✅ | Non-YouTube lines are skipped and left in the box; replaces the planned xlsx/txt batch import |
 | 35 | Live queue table with progress bars and per-job log | ✅ | Polls `/api/state` every second; background worker processes jobs one at a time. Rows are patched in place (a cell is only re-rendered when it changes), so scroll position and text selection in a log survive refreshes |
 | 35a | Copy log button | ✅ | Copies the job's yt-dlp output to the clipboard; last 300 lines kept per job |
+| 35c | Poll carries the last 50 rows | ✅ | `/api/state` returns the 50 most recent jobs plus a total; a "Show N older" button switches to `?limit=all`. Same idea as the on-demand logs |
+| 35d | Desktop notification when the queue finishes | ✅ | Browser Notification API; permission asked once, when the first job is added. Fires only when the tab is in the background; says how many finished / failed; clicking it focuses the tab |
 | 35b | Logs loaded on demand | ✅ | The once-a-second list carries only a line count; the text comes from `GET /api/jobs/<id>/log` when a panel is opened, and is re-fetched each tick only while that panel is open and the job is running |
 | 36 | Remove queued job / clear history | ✅ | |
 | 36e | Cancel a running download | ✅ | Engine raises `DownloadCancelled` from its hooks; partial `.part` files stay so a retry resumes |

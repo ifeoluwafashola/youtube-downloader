@@ -56,6 +56,7 @@
   .entries { max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:6px; margin-top:8px; }
   .entries label { display:flex; padding:4px 10px; border-bottom:1px solid #f0f2f4; gap:10px; }
   .entries label:last-child { border-bottom:0; }
+  .entries label.hidden { display:none; }
   .entries .idx { width:3em; color:var(--muted); text-align:right; }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -201,9 +202,11 @@
             <input type="text" id="rangeFrom" style="width:5em;min-width:0" placeholder="from"> –
             <input type="text" id="rangeTo" style="width:5em;min-width:0" placeholder="to">
           </span>
-          <span id="pickTools" class="hidden">
-            <button class="small" id="pickAll">Select all</button>
+          <span id="pickTools" class="hidden row" style="gap:6px">
+            <input type="text" id="pickFilter" placeholder="Filter by title…" style="min-width:180px; flex:0 1 220px">
+            <button class="small" id="pickAll" title="Select all videos currently shown">Select shown</button>
             <button class="small" id="pickNone">Select none</button>
+            <span class="hint" id="pickCount"></span>
           </span>
         </div>
         <div id="entries" class="entries hidden"></div>
@@ -249,6 +252,9 @@
         <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Quality</th><th>Status</th><th>Progress</th><th></th></tr></thead>
         <tbody id="jobs"></tbody>
       </table>
+      <div id="olderRow" class="hidden" style="text-align:center; padding:10px">
+        <button class="small" id="btnOlder"></button>
+      </div>
       <div id="empty" class="empty">
         <b>Nothing here yet.</b> Three steps:
         <ol class="steps">
@@ -397,6 +403,7 @@
   let updateDone = false;   // hide the "available" banner after a successful in-page update
   let updateBusy = false;   // banner shows update progress / result instead of "available"
   let currentFolder = '', currentPort = 0;
+  let showAll = false;      // queue: poll the last 50 rows, or everything
   let optionsLoaded = false;
   let videoOptions = [], audioOptions = [], containerOptions = [], defaultAudio = 'mp3-320', defaultContainer = 'mp4';
   const HINTS = {
@@ -469,7 +476,7 @@
   // ---- state polling -------------------------------------------------------
   async function refresh() {
     try {
-      const st = await api('/api/state');
+      const st = await api('/api/state' + (showAll ? '?limit=all' : ''));
       const s = st.settings;
       $('ver').textContent = s.ytdlp_version;
       $('appver').textContent = s.app_version;
@@ -518,6 +525,9 @@
         optionsLoaded = true;
       }
       renderJobs(st.jobs);
+      show($('olderRow'), st.jobs_hidden > 0 || (showAll && st.jobs_total > 50));
+      $('btnOlder').textContent = showAll ? 'Show recent only' : `Show ${st.jobs_hidden} older`;
+      notifyIfFinished(st.jobs);
     } catch (e) { /* server restarting; try again next tick */ }
   }
 
@@ -734,6 +744,7 @@
     $('entries').innerHTML = (i.entries || []).map(e =>
       `<label><input type="checkbox" value="${e.index}"><span class="idx">${e.index}</span><span>${esc(e.title)}</span></label>`).join('');
     document.querySelector('input[name=scope][value=all]').checked = true;
+    $('pickFilter').value = ''; applyPickFilter();
     updateScope();
     fillQuality($('quality'), typeOf('type'), 'single');   // labels now carry this video's sizes
     $('addMsg').textContent = '';
@@ -773,6 +784,7 @@
                      selection('type', $('quality'), $('container')));
       if (info.kind === 'video' && $('clip').checked && !body.start && !body.end) throw new Error('Enter a clip start and/or end time.');
       await api('/api/jobs', { method: 'POST', body: JSON.stringify(body) });
+      askNotifyPermission();
       $('addMsg').textContent = 'Added to queue.';
       $('url').value = ''; info = null; show($('detected'), false);
       fillQuality($('quality'), typeOf('type'), 'single');
@@ -785,6 +797,7 @@
     if (!urls.length) return;
     try {
       const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify(Object.assign({ urls }, selection('bulkType', $('bulkQuality'), $('bulkContainer')))) });
+      askNotifyPermission();
       $('bulkMsg').textContent = `Added ${r.added.length}.` + (r.skipped.length ? ` Skipped ${r.skipped.length} non-YouTube link(s).` : '');
       $('bulk').value = r.skipped.join('\n');
       refresh();
@@ -796,8 +809,47 @@
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') inspect(); });
   document.querySelectorAll('input[name=mixed]').forEach(r => r.addEventListener('change', inspect));
   document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', updateScope));
-  $('pickAll').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = true);
-  $('pickNone').onclick = () => $('entries').querySelectorAll('input').forEach(c => c.checked = false);
+  // Desktop notification when the queue goes from busy to idle while this tab
+  // is not in front. Permission is asked the first time a job is added.
+  let wasBusy = false;
+  function notifyIfFinished(jobs) {
+    const busy = jobs.some(j => ['QUEUED', 'INSPECTING', 'DOWNLOADING'].includes(j.status));
+    if (wasBusy && !busy && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      const recent = jobs.filter(j => j.finished && (Date.now() - new Date(j.finished.replace(' ', 'T')).getTime()) < 30 * 60000);
+      const ok = recent.filter(j => j.status === 'SUCCESS' || j.status === 'PARTIAL').length;
+      const bad = recent.filter(j => j.status === 'FAILED').length;
+      const body = [ok ? `${ok} finished` : '', bad ? `${bad} failed` : ''].filter(Boolean).join(', ') || 'Queue finished';
+      const n = new Notification('YouTube Downloader', { body, silent: false });
+      n.onclick = () => { window.focus(); n.close(); };
+    }
+    wasBusy = busy;
+  }
+  function askNotifyPermission() {
+    if ('Notification' in window && Notification.permission === 'default' && !prefs.get('notifyAsked')) {
+      prefs.set('notifyAsked', '1');
+      Notification.requestPermission();
+    }
+  }
+
+  // Filter the pick list by title. Hidden rows keep their checked state, so a
+  // user can filter, tick, filter again, tick more. "Select shown" acts on
+  // visible rows only.
+  function applyPickFilter() {
+    const q = $('pickFilter').value.trim().toLowerCase();
+    let shown = 0, checked = 0;
+    for (const row of $('entries').querySelectorAll('label')) {
+      const hit = !q || row.textContent.toLowerCase().includes(q);
+      row.classList.toggle('hidden', !hit);
+      if (hit) shown++;
+      if (row.querySelector('input').checked) checked++;
+    }
+    const total = $('entries').querySelectorAll('label').length;
+    $('pickCount').textContent = `${checked} selected` + (q ? ` · ${shown} of ${total} shown` : ` · ${total} videos`);
+  }
+  $('pickFilter').addEventListener('input', applyPickFilter);
+  $('entries').addEventListener('change', applyPickFilter);
+  $('pickAll').onclick = () => { $('entries').querySelectorAll('label:not(.hidden) input').forEach(c => c.checked = true); applyPickFilter(); };
+  $('pickNone').onclick = () => { $('entries').querySelectorAll('input').forEach(c => c.checked = false); applyPickFilter(); };
   document.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', () => {
     prefs.set('single.type', r.value); fillQuality($('quality'), r.value, 'single'); showContainer(r.value);
   }));
@@ -895,6 +947,7 @@
   $('bulkQuality').addEventListener('change', () => prefs.set('bulk.' + typeOf('bulkType'), $('bulkQuality').value));
   $('btnAdd').onclick = addJob;
   $('btnBulk').onclick = addBulk;
+  $('btnOlder').onclick = () => { showAll = !showAll; refresh(); };
   $('btnClear').onclick = async () => {
     if (!confirm('Remove all finished jobs from the history? Downloaded files are not deleted.')) return;
     await api('/api/jobs/clear', { method: 'POST' }); refresh();
