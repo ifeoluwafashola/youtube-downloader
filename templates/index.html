@@ -61,7 +61,7 @@
   /* Queue: a CSS grid. Fixed columns for metadata, the title takes what is left,
      and each job's files/log sit in a full-width area under its row. Content can
      never resize the columns, unlike a table. */
-  .jobs { margin-top:10px; --cols: 36px minmax(0,1fr) 64px 170px 100px 240px max-content; }
+  .jobs { margin-top:10px; --cols: 36px minmax(0,1fr) 64px 170px 240px 150px; }
   .jobrow { display:grid; grid-template-columns:var(--cols); gap:0 10px; align-items:start; padding:8px 10px; border-bottom:1px solid var(--line); min-width:0; }
   .jobrow > div { min-width:0; overflow-wrap:anywhere; }
   .jobrow.head { font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; padding-top:0; }
@@ -73,14 +73,17 @@
   .job .detail:empty, .job .detail.hidden { display:none; }
   .jt .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .jt small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .jobrow .actions { white-space:nowrap; text-align:right; }
-  .jobrow .actions .small + .small { margin-left:4px; }
+  /* Actions stack vertically, right-aligned, so long labels never wrap mid-word. */
+  .jobrow .actions { display:flex; flex-direction:column; align-items:stretch; gap:4px; }
+  .jobrow .actions .small { white-space:nowrap; text-align:center; }
+  button.danger { background:var(--bad); color:#fff; border-color:var(--bad); }
+  button.danger:hover { filter:brightness(1.08); }
   .detail pre.out { max-height:240px; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text; margin-top:6px; }
   /* Narrow windows: drop Type and Quality (they are repeated in the detail area
      anyway) and keep #, Title, Status, Progress, actions. Header and body hide
      the same cells, so the columns stay aligned. */
   @media (max-width: 1000px) {
-    .jobs { --cols: 36px minmax(0,1fr) 100px 180px max-content; }
+    .jobs { --cols: 36px minmax(0,1fr) 200px 150px; }
     .jobrow > div:nth-child(3), .jobrow > div:nth-child(4) { display:none; }
     .job .detail { padding-left:10px; }
   }
@@ -269,7 +272,7 @@
     </div>
     <div class="jobs">
       <div class="jobrow head">
-        <div>#</div><div>Title</div><div>Type</div><div>Quality</div><div>Status</div><div>Progress</div><div></div>
+        <div>#</div><div>Title</div><div>Type</div><div>Quality</div><div>Status</div><div></div>
       </div>
       <div id="jobs"></div>
       <div id="olderRow" class="hidden" style="text-align:center; padding:10px">
@@ -599,8 +602,7 @@
           <div class="jt" data-cell-title><div data-cell="title"></div></div>
           <div class="kind" data-cell="kind"></div>
           <div class="quality" data-cell="quality"></div>
-          <div class="status" data-cell="status"></div>
-          <div class="prog" data-cell="prog"></div>
+          <div class="status prog" data-cell="status"></div>
           <div class="actions" data-cell="actions"></div>
         </div>
         <div class="detail">
@@ -636,15 +638,18 @@
     setCell(tr, j, 'files', (j.files || []).length ? renderFiles(j) : '');
     setCell(tr, j, 'kind', `${esc(j.kind || '')}${j.items ? `<br><small class="muted">items ${esc(j.items)}</small>` : ''}`);
     setCell(tr, j, 'quality', esc(j.quality_label));
-    setCell(tr, j, 'status', `<span class="badge ${j.status}">${j.status}</span>`);
-    setCell(tr, j, 'prog', `${bar}<small>${sub}</small>`);
+    // One Status cell: while running it is the progress bar with speed / ETA /
+    // current item; once finished it is the badge with the outcome under it.
+    setCell(tr, j, 'status', active
+      ? `${bar}<small>${sub}</small>`
+      : `<span class="badge ${j.status}">${j.status}</span><small>${sub}</small>`);
     const anyFile = (j.files || []).some(f => f.exists !== false);
     setCell(tr, j, 'actions',
       (j.status === 'QUEUED' ? `<button class="small" data-rm="${j.id}">Remove</button>` : '') +
       (active ? `<button class="small" data-rm="${j.id}" ${j.detail === 'Cancelling...' ? 'disabled' : ''}>Cancel</button>` : '') +
       (j.can_redownload ? `<button class="small" data-redl="${j.id}" title="Queue this again with the same settings">Download again</button>` : '') +
       (anyFile ? `<button class="small" data-reveal="${j.id}" title="${esc(j.files[0].path.replace(/[\\/][^\\/]*$/, ''))}">Show in folder</button>` : '') +
-      (!active && j.status !== 'QUEUED' ? `<button class="small" data-del="${j.id}" title="Remove from history, optionally deleting the files">Remove</button>` : ''));
+      (!active && j.status !== 'QUEUED' ? `<button class="small danger" data-del="${j.id}" title="Remove from history, optionally deleting the files">&#128465; Remove</button>` : ''));
 
     // Log: the list payload carries only a line count. The text is fetched when
     // the panel is opened (see loadLog) and re-fetched each tick only while the
