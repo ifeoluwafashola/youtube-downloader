@@ -76,9 +76,12 @@
   .jobrow .actions { white-space:nowrap; text-align:right; }
   .jobrow .actions .small + .small { margin-left:4px; }
   .detail pre.out { max-height:240px; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text; margin-top:6px; }
-  @media (max-width: 900px) {
-    .jobs { --cols: 36px minmax(0,1fr) 200px; }
-    .jobrow.head > div:nth-child(n+3):not(:last-child), .jobrow > .kind, .jobrow > .quality, .jobrow > .status { display:none; }
+  /* Narrow windows: drop Type and Quality (they are repeated in the detail area
+     anyway) and keep #, Title, Status, Progress, actions. Header and body hide
+     the same cells, so the columns stay aligned. */
+  @media (max-width: 1000px) {
+    .jobs { --cols: 36px minmax(0,1fr) 100px 180px max-content; }
+    .jobrow > div:nth-child(3), .jobrow > div:nth-child(4) { display:none; }
     .job .detail { padding-left:10px; }
   }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; color:#fff; background:var(--skip); }
